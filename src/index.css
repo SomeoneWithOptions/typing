@@ -1,18 +1,17 @@
-*,
-*::before,
-*::after {
+:root {
+  background: #0f0f0f;
+  color: #f5f5f5;
+}
+
+* {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html {
-  background: #0a0a0b;
-}
-
 body {
   min-width: 320px;
-  background: #0a0a0b;
+  background: #0f0f0f;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

@@ -1,6 +1,33 @@
+import { COMMON_WORDS_TEXT } from './common-words'
+import { FALLBACK_WORDS_TEXT } from './fallback-words'
 import type { WordCandidate } from './types'
 
-const WORDS = [
+const PREFERRED_COMMON_WORD_LIMIT = 10_000
+const EXCLUDED_WORDS = new Set([
+  'ali',
+  'alan',
+  'allan',
+  'alain',
+  'alani',
+  'arial',
+  'ariel',
+  'earl',
+  'eileen',
+  'elaine',
+  'eli',
+  'ella',
+  'elle',
+  'ellen',
+  'elena',
+  'lara',
+  'lena',
+  'lee',
+  'lillian',
+  'neal',
+  'neil',
+])
+
+const CORE_WORDS = [
   'learn',
   'line',
   'real',
@@ -392,7 +419,23 @@ const WORDS = [
   'fuzzy',
 ] as const
 
-export const WORD_CORPUS: WordCandidate[] = [...new Set(WORDS)].map((word, index) => ({
+const commonWords = COMMON_WORDS_TEXT.trim().split('\n').filter((word) => !EXCLUDED_WORDS.has(word))
+const preferredCommonWords = commonWords.slice(0, PREFERRED_COMMON_WORD_LIMIT)
+const extendedCommonWords = commonWords.slice(PREFERRED_COMMON_WORD_LIMIT)
+const fallbackWords = [...extendedCommonWords, ...FALLBACK_WORDS_TEXT.trim().split('\n')].filter((word) => !EXCLUDED_WORDS.has(word))
+const primaryWords = [...new Set([...CORE_WORDS, ...preferredCommonWords])]
+const primaryWordSet = new Set(primaryWords)
+
+export const PRIMARY_WORD_CORPUS: WordCandidate[] = primaryWords.map((word, index) => ({
   word,
   rank: index + 1,
 }))
+
+export const FALLBACK_WORD_CORPUS: WordCandidate[] = fallbackWords
+  .filter((word) => !primaryWordSet.has(word))
+  .map((word, index) => ({
+    word,
+    rank: PRIMARY_WORD_CORPUS.length + index + 1,
+  }))
+
+export const WORD_CORPUS: WordCandidate[] = [...PRIMARY_WORD_CORPUS, ...FALLBACK_WORD_CORPUS]

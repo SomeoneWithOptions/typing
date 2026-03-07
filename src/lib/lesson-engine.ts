@@ -1,7 +1,11 @@
 import { LESSON_WORD_COUNT, LEFT_HAND_LETTERS } from './constants'
 import { getWeakLetters } from './progression'
-import { WORD_CORPUS } from './word-corpus'
+import { FALLBACK_WORD_CORPUS, PRIMARY_WORD_CORPUS } from './word-corpus'
 import type { GeneratedLesson, Letter, PracticeMode, ProgressState, WordCandidate } from './types'
+
+const MIN_PREFERRED_WORD_LENGTH = 4
+const MAX_SHORT_WORDS_PER_LESSON = 4
+const MIN_PRIMARY_POOL_SIZE = 40
 
 function shuffleWords(words: string[]) {
   const shuffled = [...words]
@@ -62,9 +66,9 @@ function scoreAdaptiveWord(candidate: WordCandidate, trainingLetter: Letter, wea
     return score + countOccurrences(candidate.word, letter) * weight
   }, 0)
   const lengthScore =
-    candidate.word.length >= 4
-      ? Math.min(candidate.word.length, 8) * 0.2
-      : 0.45
+    candidate.word.length >= MIN_PREFERRED_WORD_LENGTH
+      ? 0.8 + Math.min(candidate.word.length - MIN_PREFERRED_WORD_LENGTH, 4) * 0.28
+      : -0.35
   const alternationScore = getAlternationScore(candidate.word)
   const uniqueLetters = new Set(candidate.word).size / candidate.word.length
 
@@ -74,9 +78,45 @@ function scoreAdaptiveWord(candidate: WordCandidate, trainingLetter: Letter, wea
 function scoreFocusWord(candidate: WordCandidate, focusLetter: Letter) {
   const frequencyScore = Math.max(0, 1200 - candidate.rank) / 1200
   const targetDensity = countOccurrences(candidate.word, focusLetter) * 2.8
-  const lengthScore = candidate.word.length >= 4 && candidate.word.length <= 7 ? 1.2 : 0.6
+  const lengthScore =
+    candidate.word.length >= MIN_PREFERRED_WORD_LENGTH
+      ? 0.9 + Math.min(candidate.word.length - MIN_PREFERRED_WORD_LENGTH, 4) * 0.24
+      : -0.25
 
   return frequencyScore + targetDensity + lengthScore + getAlternationScore(candidate.word) - getRepeatPenalty(candidate.word)
+}
+
+function matchesFocusCandidate(candidate: WordCandidate, focusLetter: Letter) {
+  return candidate.word.includes(focusLetter)
+}
+
+function matchesAdaptiveCandidate(candidate: WordCandidate, unlockedSet: Set<Letter>, trainingLetter: Letter | null) {
+  if (!hasOnlyLetters(candidate.word, unlockedSet)) {
+    return false
+  }
+
+  return trainingLetter ? candidate.word.includes(trainingLetter) : true
+}
+
+function getCandidatePool(
+  mode: PracticeMode,
+  focusLetter: Letter | null,
+  unlockedSet: Set<Letter>,
+  trainingLetter: Letter | null,
+) {
+  const matchesCandidate = (candidate: WordCandidate) =>
+    mode === 'focus' && focusLetter
+      ? matchesFocusCandidate(candidate, focusLetter)
+      : matchesAdaptiveCandidate(candidate, unlockedSet, trainingLetter)
+
+  const primaryCandidates = PRIMARY_WORD_CORPUS.filter(matchesCandidate)
+
+  if (primaryCandidates.length >= MIN_PRIMARY_POOL_SIZE) {
+    return primaryCandidates
+  }
+
+  const fallbackCandidates = FALLBACK_WORD_CORPUS.filter(matchesCandidate)
+  return [...primaryCandidates, ...fallbackCandidates]
 }
 
 function pickLessonWords(candidates: WordCandidate[]) {
@@ -84,17 +124,24 @@ function pickLessonWords(candidates: WordCandidate[]) {
     return ['learn', 'line', 'near', 'real', 'rain'].flatMap((word) => Array.from({ length: 5 }, () => word)).slice(0, LESSON_WORD_COUNT)
   }
 
-  const ranked = candidates.slice(0, Math.min(60, candidates.length)).map((candidate) => candidate.word)
+  const poolSize = Math.min(candidates.length, Math.max(320, LESSON_WORD_COUNT * 10))
+  const ranked = candidates.slice(0, poolSize).map((candidate) => candidate.word)
+  const enoughLongWords = ranked.filter((word) => word.length >= MIN_PREFERRED_WORD_LENGTH).length >= LESSON_WORD_COUNT - MAX_SHORT_WORDS_PER_LESSON
   const pool = shuffleWords(ranked)
   const words: string[] = []
   let pointer = 0
+  let shortWordCount = 0
 
   while (words.length < LESSON_WORD_COUNT) {
     const nextWord = pool[pointer % pool.length]
     const previous = words[words.length - 1]
+    const isShortWord = nextWord.length < MIN_PREFERRED_WORD_LENGTH
 
-    if (nextWord !== previous || pool.length === 1) {
+    if ((!isShortWord || !enoughLongWords || shortWordCount < MAX_SHORT_WORDS_PER_LESSON) && (nextWord !== previous || pool.length === 1)) {
       words.push(nextWord)
+      if (isShortWord) {
+        shortWordCount += 1
+      }
     }
 
     pointer += 1
@@ -112,19 +159,10 @@ export function generateLesson(state: ProgressState, mode: PracticeMode, focusLe
   const unlockedSet = new Set(state.unlockedLetters)
   const trainingLetter = getAdaptiveTargetLetter(state)
   const adaptiveSupportLetters = weakLetters.filter((letter) => letter !== trainingLetter)
-  const adaptiveCandidates = WORD_CORPUS.filter((candidate) => {
-    if (!hasOnlyLetters(candidate.word, unlockedSet)) {
-      return false
-    }
-
-    return trainingLetter ? candidate.word.includes(trainingLetter) : true
-  })
-  const adaptivePool = adaptiveCandidates.length > 0
-    ? adaptiveCandidates
-    : WORD_CORPUS.filter((candidate) => hasOnlyLetters(candidate.word, unlockedSet))
+  const adaptivePool = getCandidatePool(mode, focusLetter, unlockedSet, trainingLetter)
   const scoredCandidates =
     mode === 'focus' && focusLetter
-      ? WORD_CORPUS.filter((candidate) => candidate.word.includes(focusLetter))
+      ? adaptivePool
           .map((candidate) => ({
             ...candidate,
             score: scoreFocusWord(candidate, focusLetter),
