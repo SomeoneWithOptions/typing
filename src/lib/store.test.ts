@@ -99,9 +99,98 @@ describe('typing store', () => {
 
     state = useTypingStore.getState()
     expect(state.attempts).toHaveLength(2)
+    expect(state.metricAttempts).toHaveLength(2)
     expect(state.attempts[1]).toMatchObject({ expected: expectedKey, actual: wrongKey, correct: false })
     expect(state.currentIndex).toBe(1)
     expect(state.statusMessage).toBe(`Retry ${expectedKey === ' ' ? 'space' : expectedKey.toUpperCase()}.`)
+  })
+
+  it('counts repeated wrong keys for the same letter only once until corrected', async () => {
+    const nowSpy = vi.spyOn(Date, 'now')
+    nowSpy.mockReturnValue(1000)
+
+    const { useTypingStore } = await loadStoreModule()
+    const lesson: GeneratedLesson = {
+      id: 'repeat-mistake-test',
+      mode: 'adaptive',
+      focusLetter: null,
+      words: ['he'],
+      text: 'he',
+      targetLetters: ['h', 'e'],
+    }
+
+    useTypingStore.setState({
+      isLoaded: true,
+      lesson,
+      lessonStartedAt: 0,
+      clock: Date.now(),
+      lastInputAt: null,
+      currentIndex: 0,
+      attempts: [],
+      metricAttempts: [],
+    })
+
+    useTypingStore.getState().handleTypedKey('a')
+    nowSpy.mockReturnValue(1300)
+    useTypingStore.getState().handleTypedKey('s')
+    nowSpy.mockReturnValue(1600)
+    useTypingStore.getState().handleTypedKey('h')
+
+    const state = useTypingStore.getState()
+    expect(state.attempts).toHaveLength(3)
+    expect(state.metricAttempts).toHaveLength(2)
+    expect(state.metricAttempts[0]).toMatchObject({ expected: 'h', actual: 'a', correct: false })
+    expect(state.metricAttempts[1]).toMatchObject({ expected: 'h', actual: 'h', correct: true })
+    expect(state.currentIndex).toBe(1)
+  })
+
+  it('does not penalize missed spacebar presses in accuracy tracking', async () => {
+    const nowSpy = vi.spyOn(Date, 'now')
+    nowSpy.mockReturnValue(1000)
+
+    const { useTypingStore } = await loadStoreModule()
+    const lesson: GeneratedLesson = {
+      id: 'space-mistake-test',
+      mode: 'adaptive',
+      focusLetter: null,
+      words: ['a', 'b'],
+      text: 'a b',
+      targetLetters: ['a', 'b'],
+    }
+    const firstAttempt: SessionKeyAttempt = {
+      expected: 'a',
+      actual: 'a',
+      correct: true,
+      deltaMs: 200,
+      index: 0,
+      timestamp: 900,
+    }
+
+    useTypingStore.setState({
+      isLoaded: true,
+      lesson,
+      lessonStartedAt: 0,
+      clock: Date.now(),
+      lastInputAt: firstAttempt.timestamp,
+      currentIndex: 1,
+      attempts: [firstAttempt],
+      metricAttempts: [firstAttempt],
+    })
+
+    useTypingStore.getState().handleTypedKey('x')
+
+    let state = useTypingStore.getState()
+    expect(state.attempts).toHaveLength(2)
+    expect(state.metricAttempts).toHaveLength(1)
+    expect(state.currentIndex).toBe(1)
+
+    nowSpy.mockReturnValue(1300)
+    useTypingStore.getState().handleTypedKey(' ')
+
+    state = useTypingStore.getState()
+    expect(state.metricAttempts).toHaveLength(2)
+    expect(state.metricAttempts[1]).toMatchObject({ expected: ' ', actual: ' ', correct: true })
+    expect(state.currentIndex).toBe(2)
   })
 
   it('backspace removes incorrect attempts before rewinding correct ones', async () => {

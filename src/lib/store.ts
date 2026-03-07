@@ -13,6 +13,22 @@ import type {
 
 const DEFAULT_STATUS_MESSAGE = 'Press into the practice area and start typing.'
 
+function hasUnresolvedIncorrectAttempt(attempts: SessionKeyAttempt[], index: number) {
+  return attempts.some((attempt) => attempt.index === index && !attempt.correct)
+}
+
+function shouldCountMetricAttempt(attempt: SessionKeyAttempt, attempts: SessionKeyAttempt[]) {
+  if (attempt.correct) {
+    return true
+  }
+
+  if (attempt.expected === ' ') {
+    return false
+  }
+
+  return !hasUnresolvedIncorrectAttempt(attempts, attempt.index)
+}
+
 function createLesson(progress: ProgressState) {
   return generateLesson(
     progress,
@@ -183,7 +199,9 @@ export const useTypingStore = create<TypingStore>((set) => ({
         timestamp,
       }
       const nextAttempts = [...state.attempts, attempt]
-      const nextMetricAttempts = [...state.metricAttempts, attempt]
+      const nextMetricAttempts = shouldCountMetricAttempt(attempt, state.attempts)
+        ? [...state.metricAttempts, attempt]
+        : state.metricAttempts
 
       if (!attempt.correct) {
         return {
