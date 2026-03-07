@@ -6,7 +6,6 @@ import { ProgressMeter } from './components/ProgressMeter'
 import {
   ALPHABET,
   type Letter,
-  type SessionKeyAttempt,
 } from './lib/types'
 import {
   MASTERY_ACCURACY_TARGET,
@@ -18,6 +17,7 @@ import {
 import {
   getUnlockStatus,
 } from './lib/progression'
+import { getAccuracy, getWpm } from './lib/session-metrics'
 import { indexedDbStorage } from './lib/storage'
 import { setTypingStoreSaving, useTypingStore } from './lib/store'
 
@@ -29,24 +29,13 @@ function formatWpm(value: number) {
   return `${Math.round(value)}`
 }
 
-function getLiveAccuracy(attempts: SessionKeyAttempt[]) {
-  if (attempts.length === 0) return 100
-  const correct = attempts.filter((a) => a.correct).length
-  return (correct / attempts.length) * 100
-}
-
-function getLiveWpm(attempts: SessionKeyAttempt[], elapsedMs: number) {
-  if (attempts.length === 0 || elapsedMs <= 0) return 0
-  const correct = attempts.filter((a) => a.correct).length
-  return (correct / 5) * (60000 / elapsedMs)
-}
-
 export default function App() {
   const {
     progress,
     lesson,
     currentIndex,
     attempts,
+    metricAttempts,
     lessonStartedAt,
     clock,
     isLoaded,
@@ -65,6 +54,7 @@ export default function App() {
       lesson: state.lesson,
       currentIndex: state.currentIndex,
       attempts: state.attempts,
+      metricAttempts: state.metricAttempts,
       lessonStartedAt: state.lessonStartedAt,
       clock: state.clock,
       isLoaded: state.isLoaded,
@@ -84,11 +74,14 @@ export default function App() {
 
   const unlockStatus = getUnlockStatus(progress)
   const elapsedMs = Math.max(1, clock - lessonStartedAt)
-  const liveWpm = getLiveWpm(attempts, elapsedMs)
-  const liveAccuracy = getLiveAccuracy(attempts)
+  const liveWpm = getWpm(currentIndex, elapsedMs)
+  const liveAccuracy = getAccuracy(currentIndex, metricAttempts.length)
   const lastAttempt = attempts[attempts.length - 1] ?? null
   const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
   const recentSessions = progress.sessions.slice(0, 5)
+
+  const currentLetter =
+    progress.settings.mode === 'focus' ? progress.settings.focusLetter : unlockStatus.bottleneckLetter
 
   useEffect(() => { void hydrate() }, [hydrate])
 
@@ -193,12 +186,20 @@ export default function App() {
               <strong>{formatPercent(liveAccuracy)}</strong>
             </div>
             <div className="metric-item">
+              <span>key</span>
+              <strong>{currentLetter?.toUpperCase() ?? '—'}</strong>
+            </div>
+            <div className="metric-item">
               <span>next</span>
               <strong>{unlockStatus.nextLetter?.toUpperCase() ?? '—'}</strong>
             </div>
             <div className="metric-item">
-              <span>goal</span>
-              <strong>{MASTERY_WPM_TARGET}w · {MASTERY_ACCURACY_TARGET}%</strong>
+              <span>{unlockStatus.nextLetter ? 'unlock' : 'mastery'}</span>
+              <strong>
+                {unlockStatus.nextLetter
+                  ? `${UNLOCK_WPM_TARGET}w · ${UNLOCK_ACCURACY_TARGET}%`
+                  : `${MASTERY_WPM_TARGET}w · ${MASTERY_ACCURACY_TARGET}%`}
+              </strong>
             </div>
           </div>
 

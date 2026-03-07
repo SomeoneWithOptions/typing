@@ -144,9 +144,16 @@ export function getWeakLetters(state: ProgressState, count = 3) {
 }
 
 export function getUnlockStatus(state: ProgressState): UnlockStatus {
+  const unlockedLetters = state.unlockedLetters
+  const bottleneckLetter =
+    unlockedLetters.length > 0
+      ? [...unlockedLetters].sort((a, b) => getLetterWeakness(state.letterStats[b]) - getLetterWeakness(state.letterStats[a]))[0]
+      : null
+
   if (!state.nextUnlockLetter) {
     return {
       nextLetter: null,
+      bottleneckLetter,
       sampleProgress: 1,
       accuracyProgress: 1,
       speedProgress: 1,
@@ -154,17 +161,18 @@ export function getUnlockStatus(state: ProgressState): UnlockStatus {
   }
 
   const sampleProgress = Math.min(
-    ...state.unlockedLetters.map((letter) => clamp(state.letterStats[letter].correctHits / UNLOCK_SAMPLE_TARGET)),
+    ...unlockedLetters.map((letter) => clamp(state.letterStats[letter].correctHits / UNLOCK_SAMPLE_TARGET)),
   )
   const accuracyProgress = Math.min(
-    ...state.unlockedLetters.map((letter) => clamp(getLetterAccuracy(state.letterStats[letter]) / UNLOCK_ACCURACY_TARGET)),
+    ...unlockedLetters.map((letter) => clamp(getLetterAccuracy(state.letterStats[letter]) / UNLOCK_ACCURACY_TARGET)),
   )
   const speedProgress = Math.min(
-    ...state.unlockedLetters.map((letter) => clamp(getLetterWpm(state.letterStats[letter]) / UNLOCK_WPM_TARGET)),
+    ...unlockedLetters.map((letter) => clamp(getLetterWpm(state.letterStats[letter]) / UNLOCK_WPM_TARGET)),
   )
 
   return {
     nextLetter: state.nextUnlockLetter,
+    bottleneckLetter,
     sampleProgress,
     accuracyProgress,
     speedProgress,

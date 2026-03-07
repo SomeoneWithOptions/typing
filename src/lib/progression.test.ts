@@ -4,6 +4,23 @@ import { canUnlockNextLetter, createInitialProgressState, getLetterWpm, updatePr
 import type { SessionKeyAttempt } from './types'
 
 describe('progression', () => {
+  it('unlocks at the lowest achievable accuracy above the 95 percent gate', () => {
+    const state = createInitialProgressState('2026-03-07T00:00:00.000Z')
+
+    for (const letter of state.unlockedLetters) {
+      state.letterStats[letter] = {
+        ...state.letterStats[letter],
+        attempts: UNLOCK_SAMPLE_TARGET + 2,
+        correctHits: UNLOCK_SAMPLE_TARGET,
+        totalCorrectMs: 4000,
+        smoothedMs: 300,
+      }
+    }
+
+    expect((UNLOCK_SAMPLE_TARGET / (UNLOCK_SAMPLE_TARGET + 2)) * 100).toBeGreaterThanOrEqual(UNLOCK_ACCURACY_TARGET)
+    expect(canUnlockNextLetter(state)).toBe(true)
+  })
+
   it('unlocks one letter at a time when all current letters meet the threshold', () => {
     const state = createInitialProgressState('2026-03-07T00:00:00.000Z')
 

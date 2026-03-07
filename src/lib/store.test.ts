@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  UNLOCK_ACCURACY_TARGET,
   UNLOCK_SAMPLE_TARGET,
   UNLOCK_WPM_TARGET,
 } from './constants'
@@ -190,6 +191,68 @@ describe('typing store', () => {
     expect(state.statusMessage).toBe('T unlocked.')
     expect(state.currentIndex).toBe(0)
     expect(state.attempts).toEqual([])
+  })
+
+  it('keeps corrected mistakes in session accuracy and unlock checks', async () => {
+    const { useTypingStore } = await loadStoreModule()
+    const progress = createInitialProgressState()
+
+    for (const letter of progress.unlockedLetters) {
+      progress.letterStats[letter] = {
+        ...progress.letterStats[letter],
+        attempts: UNLOCK_SAMPLE_TARGET,
+        correctHits: Math.round(UNLOCK_SAMPLE_TARGET * (UNLOCK_ACCURACY_TARGET / 100)),
+        totalCorrectMs: (12000 / UNLOCK_WPM_TARGET) * UNLOCK_SAMPLE_TARGET,
+        smoothedMs: 12000 / UNLOCK_WPM_TARGET,
+        fastestWpm: UNLOCK_WPM_TARGET,
+      }
+    }
+
+    const lesson: GeneratedLesson = {
+      id: 'accuracy-test',
+      mode: 'adaptive',
+      focusLetter: null,
+      words: ['e'],
+      text: 'e',
+      targetLetters: ['e'],
+    }
+    const incorrectAttempt: SessionKeyAttempt = {
+      expected: 'e',
+      actual: 'a',
+      correct: false,
+      deltaMs: 500,
+      index: 0,
+      timestamp: 1000,
+    }
+    const correctedAttempt: SessionKeyAttempt = {
+      expected: 'e',
+      actual: 'e',
+      correct: true,
+      deltaMs: 500,
+      index: 0,
+      timestamp: 1500,
+    }
+
+    useTypingStore.setState({
+      progress,
+      lesson,
+      lessonStartedAt: 0,
+      currentIndex: 0,
+      attempts: [correctedAttempt],
+      metricAttempts: [incorrectAttempt, correctedAttempt],
+      backspaces: 1,
+      statusMessage: 'Testing',
+      isLoaded: true,
+    })
+
+    useTypingStore.getState().completeLesson([correctedAttempt], 1500, [incorrectAttempt, correctedAttempt])
+    const state = useTypingStore.getState()
+
+    expect(state.progress.unlockedLetters).not.toContain('t')
+    expect(state.progress.sessions[0]?.accuracy).toBe(50)
+    expect(state.progress.letterStats.e.attempts).toBe(UNLOCK_SAMPLE_TARGET + 2)
+    expect(state.progress.letterStats.e.correctHits).toBe(Math.round(UNLOCK_SAMPLE_TARGET * (UNLOCK_ACCURACY_TARGET / 100)) + 1)
+    expect(state.statusMessage).toBe('Lesson complete. New set ready.')
   })
 
   it('resets progress back to the starter state after clearing storage', async () => {
