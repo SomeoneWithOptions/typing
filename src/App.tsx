@@ -12,7 +12,6 @@ import {
   type SessionKeyAttempt,
 } from './lib/types'
 import {
-  LESSON_WORD_COUNT,
   MASTERY_ACCURACY_TARGET,
   MASTERY_WPM_TARGET,
   UNLOCK_ACCURACY_TARGET,
@@ -315,7 +314,7 @@ export default function App() {
       <header className="topbar">
         <div className="topbar__title">
           <span className="brand-mark">typing</span>
-          <span className="topbar__meta">local progress · desktop-first · {progress.unlockedLetters.length}/26 letters open</span>
+          <span className="topbar__meta">{progress.unlockedLetters.length}/26 letters</span>
         </div>
         <div className="toolbar">
           <div className="mode-switch" role="tablist" aria-label="Practice mode">
@@ -362,13 +361,9 @@ export default function App() {
             className={hasFocus ? 'panel practice-panel practice-panel--focused' : 'panel practice-panel'}
             onClick={() => practiceRef.current?.focus()}
           >
-            <div className="panel__header">
-              <h1>{progress.settings.mode === 'focus' ? `Focus drill · ${progress.settings.focusLetter.toUpperCase()}` : 'Adaptive lesson'}</h1>
-              <span>{LESSON_WORD_COUNT} words per set</span>
-            </div>
             <div className="practice-panel__status">
               <span>{statusMessage}</span>
-              <span>{hasFocus ? 'Keyboard ready' : 'Click here to type'}</span>
+              <span>{hasFocus ? 'Typing' : 'Click to focus'}</span>
             </div>
             <div
               aria-label="Typing practice surface"
@@ -380,31 +375,55 @@ export default function App() {
               role="textbox"
               tabIndex={0}
             >
-              {lesson.text.split('').map((character, index) => {
-                const classes = ['practice-text__char']
-                if (character === ' ') {
-                  classes.push('practice-text__char--space')
-                }
-                if (index < currentIndex) {
-                  classes.push('practice-text__char--done')
-                }
-                if (index === currentIndex) {
-                  classes.push('practice-text__char--current')
-                }
-                if (errorIndex === index) {
-                  classes.push('practice-text__char--error')
+              {(() => {
+                const elements: React.ReactNode[] = []
+                const text = lesson.text
+                let i = 0
+
+                while (i < text.length) {
+                  if (text[i] === ' ') {
+                    const classes = ['practice-text__char', 'practice-text__char--space']
+                    if (i < currentIndex) classes.push('practice-text__char--done')
+                    if (i === currentIndex) classes.push('practice-text__char--current')
+                    if (errorIndex === i) classes.push('practice-text__char--error')
+
+                    elements.push(
+                      <span className={classes.join(' ')} key={`${lesson.id}-${i}`}>
+                        {' '}
+                      </span>,
+                    )
+                    i++
+                  } else {
+                    const wordStart = i
+                    const wordChars: React.ReactNode[] = []
+
+                    while (i < text.length && text[i] !== ' ') {
+                      const charClasses = ['practice-text__char']
+                      if (i < currentIndex) charClasses.push('practice-text__char--done')
+                      if (i === currentIndex) charClasses.push('practice-text__char--current')
+                      if (errorIndex === i) charClasses.push('practice-text__char--error')
+
+                      wordChars.push(
+                        <span className={charClasses.join(' ')} key={`${lesson.id}-${i}`}>
+                          {text[i]}
+                        </span>,
+                      )
+                      i++
+                    }
+
+                    elements.push(
+                      <span className="practice-text__word" key={`${lesson.id}-w${wordStart}`}>
+                        {wordChars}
+                      </span>,
+                    )
+                  }
                 }
 
-                return (
-                  <span className={classes.join(' ')} key={`${lesson.id}-${index}`}>
-                    {character}
-                  </span>
-                )
-              })}
+                return elements
+              })()}
             </div>
             <div className="practice-panel__footer">
-              <span>Use a physical keyboard for the intended flow.</span>
-              <span>{isPending ? 'Preparing next lesson…' : isSaving ? 'Saving local progress…' : 'Local progress saved'}</span>
+              <span>{isPending ? 'Preparing next lesson…' : isSaving ? 'Saving…' : ''}</span>
             </div>
           </section>
 
@@ -463,8 +482,8 @@ export default function App() {
         <section className="insights-column">
           <section className="panel weak-panel">
             <div className="panel__header">
-              <h2>Priority letters</h2>
-              <span>Adaptive mode keeps these in rotation.</span>
+              <h2>Priority</h2>
+              <span>Weakest letters</span>
             </div>
             <div className="weak-list">
               {weakLetters.map((letter) => (

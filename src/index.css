@@ -1,17 +1,23 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 html {
-  background: #0f0f0f;
+  background: #0a0a0b;
 }
 
 body {
-  margin: 0;
   min-width: 320px;
-  background: #0f0f0f;
-}
-
-* {
-  box-sizing: border-box;
+  background: #0a0a0b;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 a {
   color: inherit;
+  text-decoration: none;
 }
