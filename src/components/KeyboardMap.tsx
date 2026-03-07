@@ -8,10 +8,10 @@ export function KeyboardMap() {
   const unlockedSet = new Set(progress.unlockedLetters)
 
   return (
-    <section className="panel keyboard-panel">
-      <div className="panel__header">
-        <h2>Keyboard</h2>
-        <span>{progress.unlockedLetters.length} of 26 open</span>
+    <div className="keyboard-section">
+      <div className="keyboard-header">
+        <span>keyboard</span>
+        <span>{progress.unlockedLetters.length} / 26 unlocked</span>
       </div>
       <div className="keyboard-map" aria-label="Keyboard progress">
         {KEYBOARD_ROWS.map((row, rowIndex) => (
@@ -40,13 +40,13 @@ export function KeyboardMap() {
               return (
                 <div className={classes.join(' ')} key={letter}>
                   <span className="keycap__letter">{letter.toUpperCase()}</span>
-                  <span className="keycap__meta">{locked ? 'locked' : `${Math.round(wpm)} wpm`}</span>
+                  <span className="keycap__meta">{locked ? '···' : `${Math.round(wpm)}`}</span>
                 </div>
               )
             })}
           </div>
         ))}
       </div>
-    </section>
+    </div>
   )
 }

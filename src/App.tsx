@@ -2,7 +2,6 @@ import { useEffect, useRef, useTransition, type KeyboardEvent, type ReactNode } 
 import { useShallow } from 'zustand/shallow'
 import './App.css'
 import { KeyboardMap } from './components/KeyboardMap'
-import { LetterLedger } from './components/LetterLedger'
 import { ProgressMeter } from './components/ProgressMeter'
 import {
   ALPHABET,
@@ -34,20 +33,14 @@ function formatWpm(value: number) {
 }
 
 function getLiveAccuracy(attempts: SessionKeyAttempt[]) {
-  if (attempts.length === 0) {
-    return 100
-  }
-
-  const correct = attempts.filter((attempt) => attempt.correct).length
+  if (attempts.length === 0) return 100
+  const correct = attempts.filter((a) => a.correct).length
   return (correct / attempts.length) * 100
 }
 
 function getLiveWpm(attempts: SessionKeyAttempt[], elapsedMs: number) {
-  if (attempts.length === 0 || elapsedMs <= 0) {
-    return 0
-  }
-
-  const correct = attempts.filter((attempt) => attempt.correct).length
+  if (attempts.length === 0 || elapsedMs <= 0) return 0
+  const correct = attempts.filter((a) => a.correct).length
   return (correct / 5) * (60000 / elapsedMs)
 }
 
@@ -105,79 +98,46 @@ export default function App() {
   const liveAccuracy = getLiveAccuracy(attempts)
   const lastAttempt = attempts[attempts.length - 1] ?? null
   const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
-  const recentSessions = progress.sessions.slice(0, 4)
+  const recentSessions = progress.sessions.slice(0, 3)
+
+  useEffect(() => { void hydrate() }, [hydrate])
 
   useEffect(() => {
-    void hydrate()
-  }, [hydrate])
-
-  useEffect(() => {
-    if (!isLoaded) {
-      return
-    }
-
+    if (!isLoaded) return
     let active = true
     setTypingStoreSaving(true)
-
     void indexedDbStorage.save(progress).finally(() => {
-      if (active) {
-        setTypingStoreSaving(false)
-      }
+      if (active) setTypingStoreSaving(false)
     })
-
-    return () => {
-      active = false
-    }
+    return () => { active = false }
   }, [progress, isLoaded])
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      tickClock()
-    }, 1000)
-
-    return () => {
-      window.clearInterval(interval)
-    }
+    const interval = window.setInterval(() => tickClock(), 1000)
+    return () => window.clearInterval(interval)
   }, [tickClock])
 
   useEffect(() => {
-    if (!isLoaded) {
-      return
-    }
-
+    if (!isLoaded) return
     practiceRef.current?.focus()
   }, [isLoaded, lesson.id])
 
   async function handleResetProgress() {
     const confirmed = window.confirm('Reset all local typing progress and return to the starter letters?')
-    if (!confirmed) {
-      return
-    }
-
+    if (!confirmed) return
     await resetProgress()
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (!isLoaded || event.metaKey || event.ctrlKey || event.altKey) {
-      return
-    }
-
-    if (event.key === 'Tab') {
-      return
-    }
-
+    if (!isLoaded || event.metaKey || event.ctrlKey || event.altKey) return
+    if (event.key === 'Tab') return
     if (event.key === 'Backspace') {
       event.preventDefault()
       handleBackspace()
       return
     }
-
     const key = event.key === ' ' ? ' ' : event.key.toLowerCase()
-
-    if (key.length !== 1 || !/[a-z ]/.test(key)) {
-      return
-    }
-
+    if (key.length !== 1 || !/[a-z ]/.test(key)) return
     event.preventDefault()
     handleTypedKey(key)
   }
@@ -185,9 +145,7 @@ export default function App() {
   if (!isLoaded) {
     return (
       <main className="loading-shell">
-        <div className="loading-panel">
-          <span>Loading local progress…</span>
-        </div>
+        <div className="loading-panel">Loading local progress…</div>
       </main>
     )
   }
@@ -195,58 +153,58 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="topbar__title">
-          <span className="brand-mark">typing</span>
-          <span className="topbar__meta">{progress.unlockedLetters.length}/26 letters</span>
-        </div>
-        <div className="toolbar">
+        <span className="brand">typing</span>
+        <div className="topbar-sep" />
+        <div className="topbar-mid">
           <div className="mode-switch" role="tablist" aria-label="Practice mode">
             <button
-              className={progress.settings.mode === 'adaptive' ? 'toolbar-button toolbar-button--active' : 'toolbar-button'}
+              className={progress.settings.mode === 'adaptive' ? 'btn btn--active' : 'btn'}
               onClick={() => startTransition(() => setMode('adaptive'))}
               type="button"
             >
               Adaptive
             </button>
             <button
-              className={progress.settings.mode === 'focus' ? 'toolbar-button toolbar-button--active' : 'toolbar-button'}
+              className={progress.settings.mode === 'focus' ? 'btn btn--active' : 'btn'}
               onClick={() => startTransition(() => setMode('focus'))}
               type="button"
             >
               Focus
             </button>
           </div>
-          <label className="focus-control">
-            <span>Target key</span>
+          <label className="target-select">
+            <span>key</span>
             <select
               value={progress.settings.focusLetter}
-              onChange={(event) => startTransition(() => setFocusLetter(event.target.value as Letter))}
+              onChange={(e) => startTransition(() => setFocusLetter(e.target.value as Letter))}
             >
               {ALPHABET.map((letter) => (
-                <option key={letter} value={letter}>
-                  {letter.toUpperCase()}
-                </option>
+                <option key={letter} value={letter}>{letter.toUpperCase()}</option>
               ))}
             </select>
           </label>
-          <button className="toolbar-button" onClick={() => startTransition(() => queueFreshLesson())} type="button">
+          <button className="btn btn--ghost" onClick={() => startTransition(() => queueFreshLesson())} type="button">
             New lesson
           </button>
-          <button className="toolbar-button toolbar-button--danger" onClick={() => void handleResetProgress()} type="button">
+        </div>
+        <div className="topbar-end">
+          <span className="letter-count">{progress.unlockedLetters.length}/26 letters</span>
+          <button className="btn btn--danger" onClick={() => void handleResetProgress()} type="button">
             Reset
           </button>
         </div>
       </header>
 
-      <main className="layout">
-        <section className="practice-column">
-          <section
-            className={hasFocus ? 'panel practice-panel practice-panel--focused' : 'panel practice-panel'}
+      <main className="workspace">
+        {/* ── Left: Practice ── */}
+        <section className="practice-col">
+          <div
+            className={hasFocus ? 'practice-panel practice-panel--focused' : 'practice-panel'}
             onClick={() => practiceRef.current?.focus()}
           >
-            <div className="practice-panel__status">
+            <div className="practice-header">
               <span>{statusMessage}</span>
-              <span>{hasFocus ? 'Typing' : 'Click to focus'}</span>
+              <span className="focus-badge">{hasFocus ? 'typing' : 'click to focus'}</span>
             </div>
             <div
               aria-label="Typing practice surface"
@@ -265,16 +223,11 @@ export default function App() {
 
                 while (i < text.length) {
                   if (text[i] === ' ') {
-                    const classes = ['practice-text__char', 'practice-text__char--space']
-                    if (i < currentIndex) classes.push('practice-text__char--done')
-                    if (i === currentIndex) classes.push('practice-text__char--current')
-                    if (errorIndex === i) classes.push('practice-text__char--error')
-
-                    elements.push(
-                      <span className={classes.join(' ')} key={`${lesson.id}-${i}`}>
-                        {' '}
-                      </span>,
-                    )
+                    const cls = ['practice-text__char', 'practice-text__char--space']
+                    if (i < currentIndex) cls.push('practice-text__char--done')
+                    if (i === currentIndex) cls.push('practice-text__char--current')
+                    if (errorIndex === i) cls.push('practice-text__char--error')
+                    elements.push(<span className={cls.join(' ')} key={`${lesson.id}-${i}`}>{' '}</span>)
                     i += 1
                     continue
                   }
@@ -283,106 +236,114 @@ export default function App() {
                   const wordChars: ReactNode[] = []
 
                   while (i < text.length && text[i] !== ' ') {
-                    const charClasses = ['practice-text__char']
-                    if (i < currentIndex) charClasses.push('practice-text__char--done')
-                    if (i === currentIndex) charClasses.push('practice-text__char--current')
-                    if (errorIndex === i) charClasses.push('practice-text__char--error')
-
+                    const cls = ['practice-text__char']
+                    if (i < currentIndex) cls.push('practice-text__char--done')
+                    if (i === currentIndex) cls.push('practice-text__char--current')
+                    if (errorIndex === i) cls.push('practice-text__char--error')
                     wordChars.push(
-                      <span className={charClasses.join(' ')} key={`${lesson.id}-${i}`}>
-                        {text[i]}
-                      </span>,
+                      <span className={cls.join(' ')} key={`${lesson.id}-${i}`}>{text[i]}</span>
                     )
                     i += 1
                   }
 
                   elements.push(
-                    <span className="practice-text__word" key={`${lesson.id}-w${wordStart}`}>
-                      {wordChars}
-                    </span>,
+                    <span className="practice-text__word" key={`${lesson.id}-w${wordStart}`}>{wordChars}</span>
                   )
                 }
 
                 return elements
               })()}
             </div>
-            <div className="practice-panel__footer">
-              <span>{isPending ? 'Preparing next lesson…' : isSaving ? 'Saving…' : ''}</span>
+            <div className="practice-footer">
+              {isPending ? 'Preparing next lesson…' : isSaving ? 'Saving…' : ''}
             </div>
-          </section>
+          </div>
 
-          <section className="panel metrics-panel">
-            <div className="metric-grid">
-              <div className="metric-card">
-                <span>Session speed</span>
-                <strong>{formatWpm(liveWpm)}</strong>
-              </div>
-              <div className="metric-card">
-                <span>Session accuracy</span>
-                <strong>{formatPercent(liveAccuracy)}</strong>
-              </div>
-              <div className="metric-card">
-                <span>Next unlock</span>
-                <strong>{unlockStatus.nextLetter ? unlockStatus.nextLetter.toUpperCase() : 'Complete'}</strong>
-              </div>
-              <div className="metric-card">
-                <span>Mastery target</span>
-                <strong>
-                  {MASTERY_WPM_TARGET} wpm · {MASTERY_ACCURACY_TARGET}%
-                </strong>
-              </div>
+          {/* Live stats */}
+          <div className="metrics-row">
+            <div className="metric">
+              <span className="metric-label">speed</span>
+              <strong className="metric-value">{formatWpm(liveWpm)}</strong>
             </div>
-            <div className="progress-grid">
-              <ProgressMeter label="Samples" text={`${UNLOCK_SAMPLE_TARGET} correct hits`} value={unlockStatus.sampleProgress} />
-              <ProgressMeter label="Accuracy" text={`${UNLOCK_ACCURACY_TARGET}% required`} value={unlockStatus.accuracyProgress} />
-              <ProgressMeter label="Speed" text={`${UNLOCK_WPM_TARGET} wpm required`} value={unlockStatus.speedProgress} />
+            <div className="metric">
+              <span className="metric-label">accuracy</span>
+              <strong className="metric-value">{formatPercent(liveAccuracy)}</strong>
             </div>
-          </section>
+            <div className="metric">
+              <span className="metric-label">next unlock</span>
+              <strong className="metric-value">{unlockStatus.nextLetter ? unlockStatus.nextLetter.toUpperCase() : '—'}</strong>
+            </div>
+            <div className="metric">
+              <span className="metric-label">mastery target</span>
+              <strong className="metric-value">{MASTERY_WPM_TARGET}w · {MASTERY_ACCURACY_TARGET}%</strong>
+            </div>
+          </div>
 
-          <section className="panel sessions-panel">
-            <div className="panel__header">
-              <h2>Recent sessions</h2>
-              <span>{progress.sessions.length} stored locally</span>
+          {/* Unlock progress */}
+          <div className="unlock-section">
+            <div className="section-label">unlock progress</div>
+            <div className="unlock-bars">
+              <ProgressMeter label="Samples" text={`${UNLOCK_SAMPLE_TARGET} hits`} value={unlockStatus.sampleProgress} />
+              <ProgressMeter label="Accuracy" text={`${UNLOCK_ACCURACY_TARGET}% req.`} value={unlockStatus.accuracyProgress} />
+              <ProgressMeter label="Speed" text={`${UNLOCK_WPM_TARGET} wpm req.`} value={unlockStatus.speedProgress} />
             </div>
-            <div className="session-list">
-              {recentSessions.length === 0 ? (
-                <div className="session-row">
-                  <span>Start the first lesson to build local history.</span>
+          </div>
+
+          {/* Recent sessions */}
+          <div className="sessions-section">
+            <div className="sessions-header">
+              <span>recent sessions</span>
+              <span>{progress.sessions.length} stored</span>
+            </div>
+            {recentSessions.length === 0 ? (
+              <div className="session-row--empty">Complete a lesson to see history.</div>
+            ) : (
+              recentSessions.map((session) => (
+                <div className="session-row" key={session.id}>
+                  <span>{session.mode === 'focus' && session.focusLetter ? `Focus ${session.focusLetter.toUpperCase()}` : 'Adaptive'}</span>
+                  <span>{formatWpm(session.wpm)}</span>
+                  <span>{formatPercent(session.accuracy)}</span>
+                  <span>{new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
-              ) : (
-                recentSessions.map((session) => (
-                  <div className="session-row" key={session.id}>
-                    <span>{session.mode === 'focus' && session.focusLetter ? `Focus ${session.focusLetter.toUpperCase()}` : 'Adaptive'}</span>
-                    <span>{formatWpm(session.wpm)}</span>
-                    <span>{formatPercent(session.accuracy)}</span>
-                    <span>{new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
+              ))
+            )}
+          </div>
         </section>
 
-        <section className="insights-column">
-          <section className="panel weak-panel">
-            <div className="panel__header">
-              <h2>Priority</h2>
-              <span>Weakest letters</span>
-            </div>
-            <div className="weak-list">
-              {weakLetters.map((letter) => (
-                <div className="weak-card" key={letter}>
-                  <span>{letter.toUpperCase()}</span>
-                  <strong>{formatWpm(getLetterWpm(progress.letterStats[letter]))}</strong>
-                  <small>{formatPercent(getLetterAccuracy(progress.letterStats[letter]))}</small>
-                </div>
-              ))}
-            </div>
-          </section>
-
+        {/* ── Right: Sidebar ── */}
+        <aside className="sidebar">
           <KeyboardMap />
-          <LetterLedger />
-        </section>
+
+          {weakLetters.length > 0 && (
+            <div className="weak-section">
+              <div className="weak-header">priority letters</div>
+              <div className="weak-list">
+                {weakLetters.map((letter) => (
+                  <div className="weak-card" key={letter}>
+                    <span className="weak-card-letter">{letter.toUpperCase()}</span>
+                    <span className="weak-card-wpm">{formatWpm(getLetterWpm(progress.letterStats[letter]))}</span>
+                    <span className="weak-card-acc">{formatPercent(getLetterAccuracy(progress.letterStats[letter]))}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="kb-legend">
+            <div className="kb-legend-item">
+              <div className="kb-dot kb-dot--mastered" />
+              <span>mastered</span>
+            </div>
+            <div className="kb-legend-item">
+              <div className="kb-dot kb-dot--weak" />
+              <span>needs work</span>
+            </div>
+            <div className="kb-legend-item">
+              <div className="kb-dot kb-dot--locked" />
+              <span>locked</span>
+            </div>
+          </div>
+        </aside>
       </main>
     </div>
   )
