@@ -1,12 +1,10 @@
-import { getLetterAccuracy, getLetterWpm } from '../lib/progression'
-import type { Letter, ProgressState } from '../lib/types'
+import { getLetterAccuracy, getLetterWpm, getWeakLetters } from '../lib/progression'
+import { useTypingStore } from '../lib/store'
 
-interface LetterLedgerProps {
-  progress: ProgressState
-  weakLetters: Letter[]
-}
+export function LetterLedger() {
+  const progress = useTypingStore((state) => state.progress)
+  const weakLetters = getWeakLetters(progress, 3)
 
-export function LetterLedger({ progress, weakLetters }: LetterLedgerProps) {
   return (
     <section className="panel ledger-panel">
       <div className="panel__header">

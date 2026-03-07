@@ -1,13 +1,10 @@
 import { KEYBOARD_ROWS, MASTERY_ACCURACY_TARGET, MASTERY_WPM_TARGET } from '../lib/constants'
-import { getLetterAccuracy, getLetterWpm } from '../lib/progression'
-import type { Letter, ProgressState } from '../lib/types'
+import { getLetterAccuracy, getLetterWpm, getWeakLetters } from '../lib/progression'
+import { useTypingStore } from '../lib/store'
 
-interface KeyboardMapProps {
-  progress: ProgressState
-  weakLetters: Letter[]
-}
-
-export function KeyboardMap({ progress, weakLetters }: KeyboardMapProps) {
+export function KeyboardMap() {
+  const progress = useTypingStore((state) => state.progress)
+  const weakLetters = getWeakLetters(progress, 3)
   const unlockedSet = new Set(progress.unlockedLetters)
 
   return (

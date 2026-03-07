@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useTransition, type KeyboardEvent, type ReactNode } from 'react'
+import { useShallow } from 'zustand/shallow'
 import './App.css'
 import { KeyboardMap } from './components/KeyboardMap'
 import { LetterLedger } from './components/LetterLedger'
 import { ProgressMeter } from './components/ProgressMeter'
 import {
   ALPHABET,
-  type GeneratedLesson,
   type Letter,
-  type PracticeMode,
-  type ProgressState,
   type SessionKeyAttempt,
 } from './lib/types'
 import {
@@ -19,15 +17,13 @@ import {
   UNLOCK_WPM_TARGET,
 } from './lib/constants'
 import {
-  createInitialProgressState,
   getLetterAccuracy,
   getLetterWpm,
   getUnlockStatus,
   getWeakLetters,
-  updateProgressFromSession,
 } from './lib/progression'
-import { generateLesson } from './lib/lesson-engine'
 import { indexedDbStorage } from './lib/storage'
+import { setTypingStoreSaving, useTypingStore } from './lib/store'
 
 function formatPercent(value: number) {
   return `${Math.round(value)}%`
@@ -55,27 +51,50 @@ function getLiveWpm(attempts: SessionKeyAttempt[], elapsedMs: number) {
   return (correct / 5) * (60000 / elapsedMs)
 }
 
-function createLesson(progress: ProgressState) {
-  return generateLesson(
-    progress,
-    progress.settings.mode,
-    progress.settings.mode === 'focus' ? progress.settings.focusLetter : null,
-  )
-}
-
 export default function App() {
-  const [progress, setProgress] = useState<ProgressState>(() => createInitialProgressState())
-  const [lesson, setLesson] = useState<GeneratedLesson>(() => createLesson(createInitialProgressState()))
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [attempts, setAttempts] = useState<SessionKeyAttempt[]>([])
-  const [backspaces, setBackspaces] = useState(0)
-  const [lessonStartedAt, setLessonStartedAt] = useState<number>(() => Date.now())
-  const [lastInputAt, setLastInputAt] = useState<number | null>(null)
-  const [clock, setClock] = useState<number>(() => Date.now())
-  const [statusMessage, setStatusMessage] = useState('Press into the practice area and start typing.')
-  const [isLoaded, setIsLoaded] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [hasFocus, setHasFocus] = useState(false)
+  const {
+    progress,
+    lesson,
+    currentIndex,
+    attempts,
+    lessonStartedAt,
+    clock,
+    statusMessage,
+    isLoaded,
+    isSaving,
+    hasFocus,
+    hydrate,
+    setMode,
+    setFocusLetter,
+    queueFreshLesson,
+    handleTypedKey,
+    handleBackspace,
+    resetProgress,
+    tickClock,
+    setHasFocus,
+  } = useTypingStore(
+    useShallow((state) => ({
+      progress: state.progress,
+      lesson: state.lesson,
+      currentIndex: state.currentIndex,
+      attempts: state.attempts,
+      lessonStartedAt: state.lessonStartedAt,
+      clock: state.clock,
+      statusMessage: state.statusMessage,
+      isLoaded: state.isLoaded,
+      isSaving: state.isSaving,
+      hasFocus: state.hasFocus,
+      hydrate: state.hydrate,
+      setMode: state.setMode,
+      setFocusLetter: state.setFocusLetter,
+      queueFreshLesson: state.queueFreshLesson,
+      handleTypedKey: state.handleTypedKey,
+      handleBackspace: state.handleBackspace,
+      resetProgress: state.resetProgress,
+      tickClock: state.tickClock,
+      setHasFocus: state.setHasFocus,
+    })),
+  )
   const [isPending, startTransition] = useTransition()
   const practiceRef = useRef<HTMLDivElement | null>(null)
 
@@ -86,29 +105,11 @@ export default function App() {
   const liveAccuracy = getLiveAccuracy(attempts)
   const lastAttempt = attempts[attempts.length - 1] ?? null
   const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
+  const recentSessions = progress.sessions.slice(0, 4)
 
   useEffect(() => {
-    let active = true
-
-    void indexedDbStorage.load().then((storedProgress) => {
-      if (!active) {
-        return
-      }
-
-      const hydrated = storedProgress ?? createInitialProgressState()
-      setProgress(hydrated)
-      setLesson(createLesson(hydrated))
-      setCurrentIndex(0)
-      setAttempts([])
-      setLessonStartedAt(Date.now())
-      setLastInputAt(null)
-      setIsLoaded(true)
-    })
-
-    return () => {
-      active = false
-    }
-  }, [])
+    void hydrate()
+  }, [hydrate])
 
   useEffect(() => {
     if (!isLoaded) {
@@ -116,11 +117,11 @@ export default function App() {
     }
 
     let active = true
-    setIsSaving(true)
+    setTypingStoreSaving(true)
 
     void indexedDbStorage.save(progress).finally(() => {
       if (active) {
-        setIsSaving(false)
+        setTypingStoreSaving(false)
       }
     })
 
@@ -131,13 +132,13 @@ export default function App() {
 
   useEffect(() => {
     const interval = window.setInterval(() => {
-      setClock(Date.now())
+      tickClock()
     }, 1000)
 
     return () => {
       window.clearInterval(interval)
     }
-  }, [])
+  }, [tickClock])
 
   useEffect(() => {
     if (!isLoaded) {
@@ -147,87 +148,16 @@ export default function App() {
     practiceRef.current?.focus()
   }, [isLoaded, lesson.id])
 
-  function resetActiveLesson(nextLesson: GeneratedLesson) {
-    setLesson(nextLesson)
-    setCurrentIndex(0)
-    setAttempts([])
-    setBackspaces(0)
-    setLessonStartedAt(Date.now())
-    setLastInputAt(null)
-    setClock(Date.now())
-  }
-
-  function queueFreshLesson(nextProgress = progress) {
-    startTransition(() => {
-      resetActiveLesson(createLesson(nextProgress))
-    })
-  }
-
-  function updateSettings(mode: PracticeMode, focusLetter = progress.settings.focusLetter) {
-    const nextProgress: ProgressState = {
-      ...progress,
-      settings: {
-        mode,
-        focusLetter,
-      },
-    }
-
-    setProgress(nextProgress)
-    setStatusMessage(mode === 'focus' ? `Focus drill: ${focusLetter.toUpperCase()}` : 'Adaptive lesson ready.')
-    queueFreshLesson(nextProgress)
-  }
-
-  function completeLesson(nextAttempts: SessionKeyAttempt[], finishedAt: number) {
-    const endedAt = new Date(finishedAt).toISOString()
-    const correctChars = nextAttempts.filter((attempt) => attempt.correct).length
-    const sessionWpm = getLiveWpm(nextAttempts, Math.max(1, finishedAt - lessonStartedAt))
-    const sessionAccuracy = getLiveAccuracy(nextAttempts)
-    const nextProgress = updateProgressFromSession(progress, nextAttempts, {
-      id: crypto.randomUUID(),
-      mode: progress.settings.mode,
-      focusLetter: progress.settings.mode === 'focus' ? progress.settings.focusLetter : null,
-      startedAt: new Date(lessonStartedAt).toISOString(),
-      endedAt,
-      words: lesson.words,
-      attempts: nextAttempts.length,
-      correctChars,
-      accuracy: sessionAccuracy,
-      wpm: sessionWpm,
-      backspaces,
-      weakLetters,
-    })
-    const newUnlock = nextProgress.unlockedLetters.find((letter) => !progress.unlockedLetters.includes(letter))
-
-    setProgress(nextProgress)
-    setStatusMessage(newUnlock ? `${newUnlock.toUpperCase()} unlocked.` : 'Lesson complete. New set ready.')
-    startTransition(() => {
-      resetActiveLesson(createLesson(nextProgress))
-    })
-  }
-
-  function handleBackspace() {
-    if (attempts.length === 0) {
-      setBackspaces((value) => value + 1)
+  async function handleResetProgress() {
+    const confirmed = window.confirm('Reset all local typing progress and return to the starter letters?')
+    if (!confirmed) {
       return
     }
 
-    const nextAttempts = attempts.slice(0, -1)
-    const removedAttempt = attempts[attempts.length - 1]
-
-    setAttempts(nextAttempts)
-    setBackspaces((value) => value + 1)
-    setLastInputAt(nextAttempts[nextAttempts.length - 1]?.timestamp ?? null)
-
-    if (removedAttempt.correct) {
-      setCurrentIndex((value) => Math.max(0, value - 1))
-      setStatusMessage('Last correct key removed.')
-      return
-    }
-
-    setStatusMessage('Last attempt removed.')
+    await resetProgress()
   }
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (!isLoaded || event.metaKey || event.ctrlKey || event.altKey) {
       return
     }
@@ -249,55 +179,8 @@ export default function App() {
     }
 
     event.preventDefault()
-
-    const expected = lesson.text[currentIndex]
-    if (!expected) {
-      return
-    }
-
-    const timestamp = Date.now()
-    const deltaMs = Math.min(Math.max(timestamp - (lastInputAt ?? lessonStartedAt), 80), 2400)
-    const attempt: SessionKeyAttempt = {
-      expected,
-      actual: key,
-      correct: key === expected,
-      deltaMs,
-      index: currentIndex,
-      timestamp,
-    }
-    const nextAttempts = [...attempts, attempt]
-
-    setAttempts(nextAttempts)
-    setLastInputAt(timestamp)
-
-    if (!attempt.correct) {
-      setStatusMessage(`Retry ${expected === ' ' ? 'space' : expected.toUpperCase()}.`)
-      return
-    }
-
-    const nextIndex = currentIndex + 1
-    setCurrentIndex(nextIndex)
-    setStatusMessage(nextIndex === lesson.text.length ? 'Finishing lesson.' : 'Keep a steady pace.')
-
-    if (nextIndex === lesson.text.length) {
-      completeLesson(nextAttempts, timestamp)
-    }
+    handleTypedKey(key)
   }
-
-  async function handleResetProgress() {
-    const confirmed = window.confirm('Reset all local typing progress and return to the starter letters?')
-    if (!confirmed) {
-      return
-    }
-
-    await indexedDbStorage.reset()
-    const nextProgress = createInitialProgressState()
-    setProgress(nextProgress)
-    setStatusMessage('Progress reset. Starter lesson ready.')
-    queueFreshLesson(nextProgress)
-  }
-
-  const recentSessions = progress.sessions.slice(0, 4)
 
   if (!isLoaded) {
     return (
@@ -320,14 +203,14 @@ export default function App() {
           <div className="mode-switch" role="tablist" aria-label="Practice mode">
             <button
               className={progress.settings.mode === 'adaptive' ? 'toolbar-button toolbar-button--active' : 'toolbar-button'}
-              onClick={() => updateSettings('adaptive')}
+              onClick={() => startTransition(() => setMode('adaptive'))}
               type="button"
             >
               Adaptive
             </button>
             <button
               className={progress.settings.mode === 'focus' ? 'toolbar-button toolbar-button--active' : 'toolbar-button'}
-              onClick={() => updateSettings('focus')}
+              onClick={() => startTransition(() => setMode('focus'))}
               type="button"
             >
               Focus
@@ -337,7 +220,7 @@ export default function App() {
             <span>Target key</span>
             <select
               value={progress.settings.focusLetter}
-              onChange={(event) => updateSettings(progress.settings.mode, event.target.value as Letter)}
+              onChange={(event) => startTransition(() => setFocusLetter(event.target.value as Letter))}
             >
               {ALPHABET.map((letter) => (
                 <option key={letter} value={letter}>
@@ -346,7 +229,7 @@ export default function App() {
               ))}
             </select>
           </label>
-          <button className="toolbar-button" onClick={() => queueFreshLesson()} type="button">
+          <button className="toolbar-button" onClick={() => startTransition(() => queueFreshLesson())} type="button">
             New lesson
           </button>
           <button className="toolbar-button toolbar-button--danger" onClick={() => void handleResetProgress()} type="button">
@@ -376,7 +259,7 @@ export default function App() {
               tabIndex={0}
             >
               {(() => {
-                const elements: React.ReactNode[] = []
+                const elements: ReactNode[] = []
                 const text = lesson.text
                 let i = 0
 
@@ -392,31 +275,32 @@ export default function App() {
                         {' '}
                       </span>,
                     )
-                    i++
-                  } else {
-                    const wordStart = i
-                    const wordChars: React.ReactNode[] = []
+                    i += 1
+                    continue
+                  }
 
-                    while (i < text.length && text[i] !== ' ') {
-                      const charClasses = ['practice-text__char']
-                      if (i < currentIndex) charClasses.push('practice-text__char--done')
-                      if (i === currentIndex) charClasses.push('practice-text__char--current')
-                      if (errorIndex === i) charClasses.push('practice-text__char--error')
+                  const wordStart = i
+                  const wordChars: ReactNode[] = []
 
-                      wordChars.push(
-                        <span className={charClasses.join(' ')} key={`${lesson.id}-${i}`}>
-                          {text[i]}
-                        </span>,
-                      )
-                      i++
-                    }
+                  while (i < text.length && text[i] !== ' ') {
+                    const charClasses = ['practice-text__char']
+                    if (i < currentIndex) charClasses.push('practice-text__char--done')
+                    if (i === currentIndex) charClasses.push('practice-text__char--current')
+                    if (errorIndex === i) charClasses.push('practice-text__char--error')
 
-                    elements.push(
-                      <span className="practice-text__word" key={`${lesson.id}-w${wordStart}`}>
-                        {wordChars}
+                    wordChars.push(
+                      <span className={charClasses.join(' ')} key={`${lesson.id}-${i}`}>
+                        {text[i]}
                       </span>,
                     )
+                    i += 1
                   }
+
+                  elements.push(
+                    <span className="practice-text__word" key={`${lesson.id}-w${wordStart}`}>
+                      {wordChars}
+                    </span>,
+                  )
                 }
 
                 return elements
@@ -496,8 +380,8 @@ export default function App() {
             </div>
           </section>
 
-          <KeyboardMap progress={progress} weakLetters={weakLetters} />
-          <LetterLedger progress={progress} weakLetters={weakLetters} />
+          <KeyboardMap />
+          <LetterLedger />
         </section>
       </main>
     </div>

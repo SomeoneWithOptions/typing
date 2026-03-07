@@ -1,0 +1,284 @@
+import { create } from 'zustand'
+import { generateLesson } from './lesson-engine'
+import { createInitialProgressState, getWeakLetters, updateProgressFromSession } from './progression'
+import { indexedDbStorage } from './storage'
+import type {
+  GeneratedLesson,
+  Letter,
+  PracticeMode,
+  ProgressState,
+  SessionKeyAttempt,
+} from './types'
+
+const DEFAULT_STATUS_MESSAGE = 'Press into the practice area and start typing.'
+
+function getLiveAccuracy(attempts: SessionKeyAttempt[]) {
+  if (attempts.length === 0) {
+    return 100
+  }
+
+  const correct = attempts.filter((attempt) => attempt.correct).length
+  return (correct / attempts.length) * 100
+}
+
+function getLiveWpm(attempts: SessionKeyAttempt[], elapsedMs: number) {
+  if (attempts.length === 0 || elapsedMs <= 0) {
+    return 0
+  }
+
+  const correct = attempts.filter((attempt) => attempt.correct).length
+  return (correct / 5) * (60000 / elapsedMs)
+}
+
+function createLesson(progress: ProgressState) {
+  return generateLesson(
+    progress,
+    progress.settings.mode,
+    progress.settings.mode === 'focus' ? progress.settings.focusLetter : null,
+  )
+}
+
+function createLessonState(progress: ProgressState, timestamp = Date.now()) {
+  return {
+    lesson: createLesson(progress),
+    currentIndex: 0,
+    attempts: [],
+    backspaces: 0,
+    lessonStartedAt: timestamp,
+    lastInputAt: null,
+    clock: timestamp,
+  }
+}
+
+function createCompletedLessonState(
+  state: TypingStoreState,
+  nextAttempts: SessionKeyAttempt[],
+  finishedAt: number,
+) {
+  const endedAt = new Date(finishedAt).toISOString()
+  const correctChars = nextAttempts.filter((attempt) => attempt.correct).length
+  const sessionWpm = getLiveWpm(nextAttempts, Math.max(1, finishedAt - state.lessonStartedAt))
+  const sessionAccuracy = getLiveAccuracy(nextAttempts)
+  const weakLetters = getWeakLetters(state.progress, 3)
+  const nextProgress = updateProgressFromSession(state.progress, nextAttempts, {
+    id: crypto.randomUUID(),
+    mode: state.progress.settings.mode,
+    focusLetter: state.progress.settings.mode === 'focus' ? state.progress.settings.focusLetter : null,
+    startedAt: new Date(state.lessonStartedAt).toISOString(),
+    endedAt,
+    words: state.lesson.words,
+    attempts: nextAttempts.length,
+    correctChars,
+    accuracy: sessionAccuracy,
+    wpm: sessionWpm,
+    backspaces: state.backspaces,
+    weakLetters,
+  })
+  const newUnlock = nextProgress.unlockedLetters.find((letter) => !state.progress.unlockedLetters.includes(letter))
+
+  return {
+    progress: nextProgress,
+    statusMessage: newUnlock ? `${newUnlock.toUpperCase()} unlocked.` : 'Lesson complete. New set ready.',
+    ...createLessonState(nextProgress, finishedAt),
+  }
+}
+
+export interface TypingStoreState {
+  progress: ProgressState
+  lesson: GeneratedLesson
+  currentIndex: number
+  attempts: SessionKeyAttempt[]
+  backspaces: number
+  lessonStartedAt: number
+  lastInputAt: number | null
+  clock: number
+  statusMessage: string
+  isLoaded: boolean
+  isSaving: boolean
+  hasFocus: boolean
+}
+
+export interface TypingStoreActions {
+  hydrate: () => Promise<void>
+  setMode: (mode: PracticeMode) => void
+  setFocusLetter: (focusLetter: Letter) => void
+  queueFreshLesson: () => void
+  handleTypedKey: (key: string) => void
+  handleBackspace: () => void
+  completeLesson: (nextAttempts: SessionKeyAttempt[], finishedAt: number) => void
+  resetProgress: () => Promise<void>
+  tickClock: () => void
+  setHasFocus: (value: boolean) => void
+}
+
+type TypingStore = TypingStoreState & TypingStoreActions
+
+export function createInitialTypingStoreState(): TypingStoreState {
+  const progress = createInitialProgressState()
+
+  return {
+    progress,
+    ...createLessonState(progress),
+    statusMessage: DEFAULT_STATUS_MESSAGE,
+    isLoaded: false,
+    isSaving: false,
+    hasFocus: false,
+  }
+}
+
+export const useTypingStore = create<TypingStore>((set) => ({
+  ...createInitialTypingStoreState(),
+  async hydrate() {
+    const storedProgress = await indexedDbStorage.load()
+    const nextProgress = storedProgress ?? createInitialProgressState()
+
+    set({
+      progress: nextProgress,
+      ...createLessonState(nextProgress),
+      statusMessage: DEFAULT_STATUS_MESSAGE,
+      isLoaded: true,
+      isSaving: false,
+      hasFocus: false,
+    })
+  },
+  setMode(mode) {
+    set((state) => {
+      const nextProgress: ProgressState = {
+        ...state.progress,
+        settings: {
+          ...state.progress.settings,
+          mode,
+        },
+      }
+
+      return {
+        progress: nextProgress,
+        statusMessage:
+          mode === 'focus' ? `Focus drill: ${nextProgress.settings.focusLetter.toUpperCase()}` : 'Adaptive lesson ready.',
+        ...createLessonState(nextProgress),
+      }
+    })
+  },
+  setFocusLetter(focusLetter) {
+    set((state) => {
+      const nextProgress: ProgressState = {
+        ...state.progress,
+        settings: {
+          ...state.progress.settings,
+          focusLetter,
+        },
+      }
+
+      return {
+        progress: nextProgress,
+        statusMessage:
+          nextProgress.settings.mode === 'focus' ? `Focus drill: ${focusLetter.toUpperCase()}` : 'Adaptive lesson ready.',
+        ...createLessonState(nextProgress),
+      }
+    })
+  },
+  queueFreshLesson() {
+    set((state) => createLessonState(state.progress))
+  },
+  handleTypedKey(key) {
+    set((state) => {
+      const expected = state.lesson.text[state.currentIndex]
+      if (!expected) {
+        return {}
+      }
+
+      const timestamp = Date.now()
+      const deltaMs = Math.min(Math.max(timestamp - (state.lastInputAt ?? state.lessonStartedAt), 80), 2400)
+      const attempt: SessionKeyAttempt = {
+        expected,
+        actual: key,
+        correct: key === expected,
+        deltaMs,
+        index: state.currentIndex,
+        timestamp,
+      }
+      const nextAttempts = [...state.attempts, attempt]
+
+      if (!attempt.correct) {
+        return {
+          attempts: nextAttempts,
+          lastInputAt: timestamp,
+          statusMessage: `Retry ${expected === ' ' ? 'space' : expected.toUpperCase()}.`,
+        }
+      }
+
+      const nextIndex = state.currentIndex + 1
+      if (nextIndex === state.lesson.text.length) {
+        return createCompletedLessonState(state, nextAttempts, timestamp)
+      }
+
+      return {
+        attempts: nextAttempts,
+        currentIndex: nextIndex,
+        lastInputAt: timestamp,
+        statusMessage: 'Keep a steady pace.',
+      }
+    })
+  },
+  handleBackspace() {
+    set((state) => {
+      if (state.attempts.length === 0) {
+        return {
+          backspaces: state.backspaces + 1,
+        }
+      }
+
+      const nextAttempts = state.attempts.slice(0, -1)
+      const removedAttempt = state.attempts[state.attempts.length - 1]
+
+      if (removedAttempt.correct) {
+        return {
+          attempts: nextAttempts,
+          backspaces: state.backspaces + 1,
+          currentIndex: Math.max(0, state.currentIndex - 1),
+          lastInputAt: nextAttempts[nextAttempts.length - 1]?.timestamp ?? null,
+          statusMessage: 'Last correct key removed.',
+        }
+      }
+
+      return {
+        attempts: nextAttempts,
+        backspaces: state.backspaces + 1,
+        lastInputAt: nextAttempts[nextAttempts.length - 1]?.timestamp ?? null,
+        statusMessage: 'Last attempt removed.',
+      }
+    })
+  },
+  completeLesson(nextAttempts, finishedAt) {
+    set((state) => createCompletedLessonState(state, nextAttempts, finishedAt))
+  },
+  async resetProgress() {
+    await indexedDbStorage.reset()
+    const nextProgress = createInitialProgressState()
+
+    set((state) => ({
+      progress: nextProgress,
+      ...createLessonState(nextProgress),
+      statusMessage: 'Progress reset. Starter lesson ready.',
+      isLoaded: state.isLoaded,
+      isSaving: false,
+      hasFocus: false,
+    }))
+  },
+  tickClock() {
+    set({
+      clock: Date.now(),
+    })
+  },
+  setHasFocus(value) {
+    set({
+      hasFocus: value,
+    })
+  },
+}))
+
+export function setTypingStoreSaving(isSaving: boolean) {
+  useTypingStore.setState({
+    isSaving,
+  })
+}
