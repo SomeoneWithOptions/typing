@@ -101,8 +101,14 @@ export interface UnlockSequence {
 export interface UnlockStatus {
   nextLetter: Letter | null
   bottleneckLetter: Letter | null
+  sampleLetter: Letter | null
+  sampleHits: number
   sampleProgress: number
+  accuracyLetter: Letter | null
+  accuracyValue: number
   accuracyProgress: number
+  speedLetter: Letter | null
+  speedWpm: number
   speedProgress: number
 }
 

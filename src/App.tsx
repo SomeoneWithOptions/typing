@@ -12,8 +12,6 @@ import {
   UNLOCK_WPM_TARGET,
 } from './lib/constants'
 import {
-  getLetterAccuracy,
-  getLetterWpm,
   getUnlockStatus,
 } from './lib/progression'
 import { getAccuracy, getWpm } from './lib/session-metrics'
@@ -90,10 +88,6 @@ export default function App() {
   const lastAttempt = attempts[attempts.length - 1] ?? null
   const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
   const recentSessions = progress.sessions.slice(0, 5)
-  const bottleneckStats = unlockStatus.bottleneckLetter ? progress.letterStats[unlockStatus.bottleneckLetter] : null
-  const bottleneckHits = bottleneckStats?.correctHits ?? 0
-  const bottleneckAccuracy = bottleneckStats ? getLetterAccuracy(bottleneckStats) : 0
-  const bottleneckWpm = bottleneckStats ? getLetterWpm(bottleneckStats) : 0
 
   const currentLetter = lesson.targetLetters[0] ?? (progress.settings.mode === 'focus' ? progress.settings.focusLetter : unlockStatus.bottleneckLetter)
 
@@ -266,23 +260,23 @@ export default function App() {
             <h3 className="unlock-progress-strip__title">unlock progress</h3>
             <div className="unlock-progress-strip">
               <div className="metric-item">
-                <span>hits</span>
+                <span>{`hits${unlockStatus.sampleLetter ? ` ${unlockStatus.sampleLetter.toUpperCase()}` : ''}`}</span>
                 <strong className={unlockStatus.sampleProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
-                  {formatNumber(bottleneckHits)}/{UNLOCK_SAMPLE_TARGET}
+                  {formatNumber(unlockStatus.sampleHits)}/{UNLOCK_SAMPLE_TARGET}
                 </strong>
               </div>
 
               <div className="metric-item">
-                <span>acc</span>
+                <span>{`acc${unlockStatus.accuracyLetter ? ` ${unlockStatus.accuracyLetter.toUpperCase()}` : ''}`}</span>
                 <strong className={unlockStatus.accuracyProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
-                  {formatPercent(bottleneckAccuracy)}/{UNLOCK_ACCURACY_TARGET}%
+                  {formatPercent(unlockStatus.accuracyValue)}/{UNLOCK_ACCURACY_TARGET}%
                 </strong>
               </div>
 
               <div className="metric-item">
-                <span>wpm</span>
+                <span>{`wpm${unlockStatus.speedLetter ? ` ${unlockStatus.speedLetter.toUpperCase()}` : ''}`}</span>
                 <strong className={unlockStatus.speedProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
-                  {formatNumber(truncate(bottleneckWpm, 2), 2)}/{UNLOCK_WPM_TARGET}
+                  {formatNumber(truncate(unlockStatus.speedWpm, 2), 2)}/{UNLOCK_WPM_TARGET}
                 </strong>
               </div>
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { UNLOCK_ACCURACY_TARGET, UNLOCK_SAMPLE_TARGET } from './constants'
-import { canUnlockNextLetter, createInitialProgressState, getLetterWpm, updateProgressFromSession } from './progression'
+import { canUnlockNextLetter, createInitialProgressState, getLetterWpm, getUnlockStatus, updateProgressFromSession } from './progression'
 import type { SessionKeyAttempt } from './types'
 
 describe('progression', () => {
@@ -77,5 +77,53 @@ describe('progression', () => {
 
     expect((stats.correctHits / stats.attempts) * 100).toBeGreaterThanOrEqual(UNLOCK_ACCURACY_TARGET)
     expect(getLetterWpm(stats)).toBeGreaterThan(24)
+  })
+
+  it('reports the exact blocking letter and value for each unlock metric', () => {
+    const state = createInitialProgressState('2026-03-07T00:00:00.000Z')
+
+    for (const letter of state.unlockedLetters) {
+      state.letterStats[letter] = {
+        ...state.letterStats[letter],
+        attempts: UNLOCK_SAMPLE_TARGET,
+        correctHits: UNLOCK_SAMPLE_TARGET,
+        totalCorrectMs: 4000,
+        smoothedMs: 300,
+      }
+    }
+
+    state.letterStats.a = {
+      ...state.letterStats.a,
+      attempts: 40,
+      correctHits: 39,
+      totalCorrectMs: 4000,
+      smoothedMs: 300,
+    }
+
+    state.letterStats.e = {
+      ...state.letterStats.e,
+      attempts: 42,
+      correctHits: 40,
+      totalCorrectMs: 4000,
+      smoothedMs: 300,
+    }
+
+    state.letterStats.i = {
+      ...state.letterStats.i,
+      attempts: 40,
+      correctHits: 40,
+      totalCorrectMs: 0,
+      smoothedMs: 520,
+    }
+
+    const unlockStatus = getUnlockStatus(state)
+
+    expect(unlockStatus.sampleLetter).toBe('a')
+    expect(unlockStatus.sampleHits).toBe(39)
+    expect(unlockStatus.sampleProgress).toBe(39 / 40)
+    expect(unlockStatus.accuracyLetter).toBe('e')
+    expect(unlockStatus.accuracyValue).toBeCloseTo((40 / 42) * 100)
+    expect(unlockStatus.speedLetter).toBe('i')
+    expect(unlockStatus.speedWpm).toBeCloseTo(12000 / 520)
   })
 })
