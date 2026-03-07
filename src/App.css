@@ -1,8 +1,8 @@
 :root {
   color-scheme: dark;
 
-  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --font-ui: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Azeret Mono', monospace;
 
   --header-h: 64px;
 
@@ -187,6 +187,7 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   font-family: var(--font-mono);
   font-size: 0.9rem;
   color: var(--t-muted);
+  justify-content: center;
 }
 
 .metric-item {
@@ -203,6 +204,41 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
 .metric-item strong {
   color: var(--t-secondary);
   font-weight: 500;
+}
+
+.metric--met {
+  color: var(--accent) !important;
+}
+
+.metric--unmet {
+  color: var(--error) !important;
+}
+
+.unlock-progress-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 6rem;
+}
+
+.unlock-progress-strip {
+  display: flex;
+  gap: 2rem;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--t-muted);
+  justify-content: center;
+  align-items: baseline;
+}
+
+.unlock-progress-strip__title {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: var(--t-muted);
 }
 
 /* ─── Secondary Sections ─── */
@@ -246,6 +282,9 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
 
 .progress-meter__header {
   display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   justify-content: space-between;
   font-size: 0.8rem;
   color: var(--t-secondary);

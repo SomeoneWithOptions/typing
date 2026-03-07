@@ -2,27 +2,38 @@ import { useEffect, useRef, useTransition, type KeyboardEvent, type ReactNode } 
 import { useShallow } from 'zustand/shallow'
 import './App.css'
 import { KeyboardMap } from './components/KeyboardMap'
-import { ProgressMeter } from './components/ProgressMeter'
 import {
   ALPHABET,
   type Letter,
 } from './lib/types'
 import {
-  MASTERY_ACCURACY_TARGET,
-  MASTERY_WPM_TARGET,
   UNLOCK_ACCURACY_TARGET,
   UNLOCK_SAMPLE_TARGET,
   UNLOCK_WPM_TARGET,
 } from './lib/constants'
 import {
+  getLetterAccuracy,
+  getLetterWpm,
   getUnlockStatus,
 } from './lib/progression'
 import { getAccuracy, getWpm } from './lib/session-metrics'
 import { indexedDbStorage } from './lib/storage'
 import { setTypingStoreSaving, useTypingStore } from './lib/store'
 
+function truncate(value: number, fractionDigits: number) {
+  const factor = 10 ** fractionDigits
+  return Math.trunc(value * factor) / factor
+}
+
+function formatNumber(value: number, maximumFractionDigits = 0) {
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  }).format(value)
+}
+
 function formatPercent(value: number) {
-  return `${Math.round(value)}%`
+  return `${formatNumber(truncate(value, 2), 2)}%`
 }
 
 function formatWpm(value: number) {
@@ -73,15 +84,18 @@ export default function App() {
   const practiceRef = useRef<HTMLDivElement | null>(null)
 
   const unlockStatus = getUnlockStatus(progress)
-  const elapsedMs = Math.max(1, clock - lessonStartedAt)
+  const elapsedMs = lessonStartedAt === null ? 0 : Math.max(1, clock - lessonStartedAt)
   const liveWpm = getWpm(currentIndex, elapsedMs)
   const liveAccuracy = getAccuracy(currentIndex, metricAttempts.length)
   const lastAttempt = attempts[attempts.length - 1] ?? null
   const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
   const recentSessions = progress.sessions.slice(0, 5)
+  const bottleneckStats = unlockStatus.bottleneckLetter ? progress.letterStats[unlockStatus.bottleneckLetter] : null
+  const bottleneckHits = bottleneckStats?.correctHits ?? 0
+  const bottleneckAccuracy = bottleneckStats ? getLetterAccuracy(bottleneckStats) : 0
+  const bottleneckWpm = bottleneckStats ? getLetterWpm(bottleneckStats) : 0
 
-  const currentLetter =
-    progress.settings.mode === 'focus' ? progress.settings.focusLetter : unlockStatus.bottleneckLetter
+  const currentLetter = lesson.targetLetters[0] ?? (progress.settings.mode === 'focus' ? progress.settings.focusLetter : unlockStatus.bottleneckLetter)
 
   useEffect(() => { void hydrate() }, [hydrate])
 
@@ -189,18 +203,6 @@ export default function App() {
               <span>key</span>
               <strong>{currentLetter?.toUpperCase() ?? '—'}</strong>
             </div>
-            <div className="metric-item">
-              <span>next</span>
-              <strong>{unlockStatus.nextLetter?.toUpperCase() ?? '—'}</strong>
-            </div>
-            <div className="metric-item">
-              <span>{unlockStatus.nextLetter ? 'unlock' : 'mastery'}</span>
-              <strong>
-                {unlockStatus.nextLetter
-                  ? `${UNLOCK_WPM_TARGET}w · ${UNLOCK_ACCURACY_TARGET}%`
-                  : `${MASTERY_WPM_TARGET}w · ${MASTERY_ACCURACY_TARGET}%`}
-              </strong>
-            </div>
           </div>
 
           <div
@@ -260,35 +262,54 @@ export default function App() {
               })()
             )}
           </div>
+          <div className="unlock-progress-container">
+            <h3 className="unlock-progress-strip__title">unlock progress</h3>
+            <div className="unlock-progress-strip">
+              <div className="metric-item">
+                <span>hits</span>
+                <strong className={unlockStatus.sampleProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
+                  {formatNumber(bottleneckHits)}/{UNLOCK_SAMPLE_TARGET}
+                </strong>
+              </div>
+
+              <div className="metric-item">
+                <span>acc</span>
+                <strong className={unlockStatus.accuracyProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
+                  {formatPercent(bottleneckAccuracy)}/{UNLOCK_ACCURACY_TARGET}%
+                </strong>
+              </div>
+
+              <div className="metric-item">
+                <span>wpm</span>
+                <strong className={unlockStatus.speedProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
+                  {formatNumber(truncate(bottleneckWpm, 2), 2)}/{UNLOCK_WPM_TARGET}
+                </strong>
+              </div>
+
+              <div className="metric-item">
+                <span>next letter</span>
+                <strong>{unlockStatus.nextLetter?.toUpperCase() ?? '—'}</strong>
+              </div>
+            </div>
+          </div>
         </div>
 
         <section className="secondary-info">
-          <div className="progress-section">
-            <div className="unlock-group">
-              <h3 className="info-section-title">Unlock Progress</h3>
-              <div className="unlock-bars">
-                <ProgressMeter label="Hits" text={`${UNLOCK_SAMPLE_TARGET} hits`} value={unlockStatus.sampleProgress} />
-                <ProgressMeter label="Accuracy" text={`${UNLOCK_ACCURACY_TARGET}%`} value={unlockStatus.accuracyProgress} />
-                <ProgressMeter label="Speed" text={`${UNLOCK_WPM_TARGET} wpm`} value={unlockStatus.speedProgress} />
-              </div>
-            </div>
-
-            <div className="sessions-group">
-              <h3 className="info-section-title">Recent Sessions</h3>
-              <div className="sessions-list">
-                {recentSessions.length === 0 ? (
-                  <div className="session-row--empty">Finish a lesson to see your history.</div>
-                ) : (
-                  recentSessions.map((session) => (
-                    <div className="session-row" key={session.id}>
-                      <span>{session.mode === 'focus' && session.focusLetter ? `focus ${session.focusLetter.toUpperCase()}` : 'adaptive'}</span>
-                      <span>{formatWpm(session.wpm)} wpm</span>
-                      <span>{formatPercent(session.accuracy)}</span>
-                      <span>{new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  ))
-                )}
-              </div>
+          <div className="sessions-group">
+            <h3 className="info-section-title">Recent Sessions</h3>
+            <div className="sessions-list">
+              {recentSessions.length === 0 ? (
+                <div className="session-row--empty">Finish a lesson to see your history.</div>
+              ) : (
+                recentSessions.map((session) => (
+                  <div className="session-row" key={session.id}>
+                    <span>{session.mode === 'focus' && session.focusLetter ? `focus ${session.focusLetter.toUpperCase()}` : 'adaptive'}</span>
+                    <span>{formatWpm(session.wpm)} wpm</span>
+                    <span>{formatPercent(session.accuracy)}</span>
+                    <span>{new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 

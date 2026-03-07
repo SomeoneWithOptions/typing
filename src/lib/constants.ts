@@ -8,6 +8,7 @@ export const UNLOCK_WPM_TARGET = 24
 export const UNLOCK_ACCURACY_TARGET = 95
 export const MASTERY_WPM_TARGET = 40
 export const MASTERY_ACCURACY_TARGET = 97
+export const LESSON_IDLE_TIMEOUT_MS = 15_000
 
 export const UNLOCK_SEQUENCE: UnlockSequence = {
   initial: ['e', 'n', 'i', 'a', 'r', 'l'],

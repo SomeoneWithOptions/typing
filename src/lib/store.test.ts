@@ -89,6 +89,7 @@ describe('typing store', () => {
     let state = useTypingStore.getState()
     expect(state.attempts).toHaveLength(1)
     expect(state.attempts[0]).toMatchObject({ expected: correctKey, actual: correctKey, correct: true })
+    expect(state.lessonStartedAt).toBe(1000)
     expect(state.currentIndex).toBe(1)
     expect(state.statusMessage).toBe('Keep a steady pace.')
 
@@ -103,6 +104,15 @@ describe('typing store', () => {
     expect(state.attempts[1]).toMatchObject({ expected: expectedKey, actual: wrongKey, correct: false })
     expect(state.currentIndex).toBe(1)
     expect(state.statusMessage).toBe(`Retry ${expectedKey === ' ' ? 'space' : expectedKey.toUpperCase()}.`)
+  })
+
+  it('keeps the live timer stopped until the first keypress', async () => {
+    const { useTypingStore } = await loadStoreModule()
+    const state = useTypingStore.getState()
+
+    expect(state.lessonStartedAt).toBeNull()
+    expect(state.lastInputAt).toBeNull()
+    expect(state.currentIndex).toBe(0)
   })
 
   it('counts repeated wrong keys for the same letter only once until corrected', async () => {
@@ -223,8 +233,37 @@ describe('typing store', () => {
     state = useTypingStore.getState()
     expect(state.attempts).toEqual([])
     expect(state.currentIndex).toBe(0)
+    expect(state.lessonStartedAt).toBeNull()
     expect(state.backspaces).toBe(2)
     expect(state.statusMessage).toBe('Last correct key removed.')
+  })
+
+  it('resets the current lesson after 15 seconds of inactivity', async () => {
+    const nowSpy = vi.spyOn(Date, 'now')
+    nowSpy.mockReturnValue(1000)
+
+    const { useTypingStore } = await loadStoreModule()
+    useTypingStore.setState({
+      isLoaded: true,
+      clock: 1000,
+    })
+
+    const lessonId = useTypingStore.getState().lesson.id
+    const firstKey = useTypingStore.getState().lesson.text[0]
+    useTypingStore.getState().handleTypedKey(firstKey)
+
+    nowSpy.mockReturnValue(16_000)
+    useTypingStore.getState().tickClock()
+
+    const state = useTypingStore.getState()
+    expect(state.lesson.id).toBe(lessonId)
+    expect(state.currentIndex).toBe(0)
+    expect(state.attempts).toEqual([])
+    expect(state.metricAttempts).toEqual([])
+    expect(state.lessonStartedAt).toBeNull()
+    expect(state.lastInputAt).toBeNull()
+    expect(state.clock).toBe(16_000)
+    expect(state.statusMessage).toBe('Lesson reset after 15 seconds of inactivity.')
   })
 
   it('completes a lesson and unlocks the next letter when thresholds are met', async () => {

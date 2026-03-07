@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { LESSON_IDLE_TIMEOUT_MS } from './constants'
 import { generateLesson } from './lesson-engine'
 import { createInitialProgressState, getWeakLetters, updateProgressFromSession } from './progression'
 import { getAccuracy, getWpm } from './session-metrics'
@@ -44,7 +45,19 @@ function createLessonState(progress: ProgressState, timestamp = Date.now()) {
     attempts: [],
     metricAttempts: [],
     backspaces: 0,
-    lessonStartedAt: timestamp,
+    lessonStartedAt: null,
+    lastInputAt: null,
+    clock: timestamp,
+  }
+}
+
+function resetCurrentLessonState(timestamp = Date.now()) {
+  return {
+    currentIndex: 0,
+    attempts: [],
+    metricAttempts: [],
+    backspaces: 0,
+    lessonStartedAt: null,
     lastInputAt: null,
     clock: timestamp,
   }
@@ -54,17 +67,19 @@ function createCompletedLessonState(
   state: TypingStoreState,
   nextMetricAttempts: SessionKeyAttempt[],
   finishedAt: number,
+  startedAtOverride?: number,
 ) {
   const endedAt = new Date(finishedAt).toISOString()
+  const startedAt = startedAtOverride ?? state.lessonStartedAt ?? finishedAt
   const correctChars = state.lesson.text.length
-  const sessionWpm = getWpm(correctChars, Math.max(1, finishedAt - state.lessonStartedAt))
+  const sessionWpm = getWpm(correctChars, Math.max(1, finishedAt - startedAt))
   const sessionAccuracy = getAccuracy(correctChars, nextMetricAttempts.length)
   const weakLetters = getWeakLetters(state.progress, 3)
   const nextProgress = updateProgressFromSession(state.progress, nextMetricAttempts, {
     id: crypto.randomUUID(),
     mode: state.progress.settings.mode,
     focusLetter: state.progress.settings.mode === 'focus' ? state.progress.settings.focusLetter : null,
-    startedAt: new Date(state.lessonStartedAt).toISOString(),
+    startedAt: new Date(startedAt).toISOString(),
     endedAt,
     words: state.lesson.words,
     attempts: nextMetricAttempts.length,
@@ -90,7 +105,7 @@ export interface TypingStoreState {
   attempts: SessionKeyAttempt[]
   metricAttempts: SessionKeyAttempt[]
   backspaces: number
-  lessonStartedAt: number
+  lessonStartedAt: number | null
   lastInputAt: number | null
   clock: number
   statusMessage: string
@@ -189,7 +204,9 @@ export const useTypingStore = create<TypingStore>((set) => ({
       }
 
       const timestamp = Date.now()
-      const deltaMs = Math.min(Math.max(timestamp - (state.lastInputAt ?? state.lessonStartedAt), 80), 2400)
+      const lessonStartedAt = state.lessonStartedAt ?? timestamp
+      const previousInputAt = state.lastInputAt ?? lessonStartedAt
+      const deltaMs = Math.min(Math.max(timestamp - previousInputAt, 80), 2400)
       const attempt: SessionKeyAttempt = {
         expected,
         actual: key,
@@ -207,6 +224,7 @@ export const useTypingStore = create<TypingStore>((set) => ({
         return {
           attempts: nextAttempts,
           metricAttempts: nextMetricAttempts,
+          lessonStartedAt,
           lastInputAt: timestamp,
           statusMessage: `Retry ${expected === ' ' ? 'space' : expected.toUpperCase()}.`,
         }
@@ -214,13 +232,14 @@ export const useTypingStore = create<TypingStore>((set) => ({
 
       const nextIndex = state.currentIndex + 1
       if (nextIndex === state.lesson.text.length) {
-        return createCompletedLessonState(state, nextMetricAttempts, timestamp)
+        return createCompletedLessonState(state, nextMetricAttempts, timestamp, lessonStartedAt)
       }
 
       return {
         attempts: nextAttempts,
         metricAttempts: nextMetricAttempts,
         currentIndex: nextIndex,
+        lessonStartedAt,
         lastInputAt: timestamp,
         statusMessage: 'Keep a steady pace.',
       }
@@ -251,6 +270,7 @@ export const useTypingStore = create<TypingStore>((set) => ({
         metricIndex === -1
           ? state.metricAttempts
           : state.metricAttempts.filter((_, index) => index !== metricIndex)
+      const nextLessonStartedAt = nextAttempts.length === 0 ? null : state.lessonStartedAt
 
       if (removedAttempt.correct) {
         return {
@@ -258,6 +278,7 @@ export const useTypingStore = create<TypingStore>((set) => ({
           metricAttempts: nextMetricAttempts,
           backspaces: state.backspaces + 1,
           currentIndex: Math.max(0, state.currentIndex - 1),
+          lessonStartedAt: nextLessonStartedAt,
           lastInputAt: nextAttempts[nextAttempts.length - 1]?.timestamp ?? null,
           statusMessage: 'Last correct key removed.',
         }
@@ -267,6 +288,7 @@ export const useTypingStore = create<TypingStore>((set) => ({
         attempts: nextAttempts,
         metricAttempts: nextMetricAttempts,
         backspaces: state.backspaces + 1,
+        lessonStartedAt: nextLessonStartedAt,
         lastInputAt: nextAttempts[nextAttempts.length - 1]?.timestamp ?? null,
         statusMessage: 'Last attempt removed.',
       }
@@ -289,8 +311,22 @@ export const useTypingStore = create<TypingStore>((set) => ({
     }))
   },
   tickClock() {
-    set({
-      clock: Date.now(),
+    set((state) => {
+      const timestamp = Date.now()
+
+      if (
+        state.lastInputAt !== null &&
+        timestamp - state.lastInputAt >= LESSON_IDLE_TIMEOUT_MS
+      ) {
+        return {
+          ...resetCurrentLessonState(timestamp),
+          statusMessage: 'Lesson reset after 15 seconds of inactivity.',
+        }
+      }
+
+      return {
+        clock: timestamp,
+      }
     })
   },
   setHasFocus(value) {
