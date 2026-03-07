@@ -142,8 +142,10 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
+    <>
+      <div className="mobile-overlay">only available on desktop</div>
+      <div className="app-shell">
+        <header className="topbar">
         <div className="topbar-mid">
           <span className="brand">typing</span>
           <button
@@ -319,5 +321,6 @@ export default function App() {
         </section>
       </main>
     </div>
+    </>
   )
 }
