@@ -100,6 +100,7 @@ export interface UnlockSequence {
 
 export interface UnlockStatus {
   nextLetter: Letter | null
+  bottleneckLetter: Letter | null
   sampleProgress: number
   accuracyProgress: number
   speedProgress: number

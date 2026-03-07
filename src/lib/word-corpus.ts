@@ -9,6 +9,9 @@ const EXCLUDED_WORDS = new Set([
   'allan',
   'alain',
   'alani',
+  'ala',
+  'alr',
+  'alle',
   'arial',
   'ariel',
   'earl',
@@ -20,11 +23,17 @@ const EXCLUDED_WORDS = new Set([
   'ellen',
   'elena',
   'lara',
+  'lai',
+  'lan',
   'lena',
   'lee',
+  'lei',
   'lillian',
+  'lil',
   'neal',
+  'nel',
   'neil',
+  'ile',
 ])
 
 const CORE_WORDS = [

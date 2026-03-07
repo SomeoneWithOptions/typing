@@ -4,8 +4,8 @@ import { FALLBACK_WORD_CORPUS, PRIMARY_WORD_CORPUS } from './word-corpus'
 import type { GeneratedLesson, Letter, PracticeMode, ProgressState, WordCandidate } from './types'
 
 const MIN_PREFERRED_WORD_LENGTH = 4
-const MAX_SHORT_WORDS_PER_LESSON = 4
-const MIN_PRIMARY_POOL_SIZE = 40
+const MAX_SHORT_WORDS_PER_LESSON = 3
+const MIN_PRIMARY_VARIETY = 12
 
 function shuffleWords(words: string[]) {
   const shuffled = [...words]
@@ -86,6 +86,33 @@ function scoreFocusWord(candidate: WordCandidate, focusLetter: Letter) {
   return frequencyScore + targetDensity + lengthScore + getAlternationScore(candidate.word) - getRepeatPenalty(candidate.word)
 }
 
+function fillLessonSlots(pool: string[], count: number) {
+  if (pool.length === 0 || count <= 0) {
+    return []
+  }
+
+  const shuffled = shuffleWords(pool)
+  const words: string[] = []
+  let pointer = 0
+
+  while (words.length < count) {
+    const nextWord = shuffled[pointer % shuffled.length]
+    const previous = words[words.length - 1]
+
+    if (nextWord !== previous || shuffled.length === 1) {
+      words.push(nextWord)
+    }
+
+    pointer += 1
+
+    if (pointer % shuffled.length === 0) {
+      shuffled.splice(0, shuffled.length, ...shuffleWords(pool))
+    }
+  }
+
+  return words
+}
+
 function matchesFocusCandidate(candidate: WordCandidate, focusLetter: Letter) {
   return candidate.word.includes(focusLetter)
 }
@@ -111,7 +138,7 @@ function getCandidatePool(
 
   const primaryCandidates = PRIMARY_WORD_CORPUS.filter(matchesCandidate)
 
-  if (primaryCandidates.length >= MIN_PRIMARY_POOL_SIZE) {
+  if (primaryCandidates.length >= MIN_PRIMARY_VARIETY) {
     return primaryCandidates
   }
 
@@ -126,32 +153,12 @@ function pickLessonWords(candidates: WordCandidate[]) {
 
   const poolSize = Math.min(candidates.length, Math.max(320, LESSON_WORD_COUNT * 10))
   const ranked = candidates.slice(0, poolSize).map((candidate) => candidate.word)
-  const enoughLongWords = ranked.filter((word) => word.length >= MIN_PREFERRED_WORD_LENGTH).length >= LESSON_WORD_COUNT - MAX_SHORT_WORDS_PER_LESSON
-  const pool = shuffleWords(ranked)
-  const words: string[] = []
-  let pointer = 0
-  let shortWordCount = 0
+  const longWords = [...new Set(ranked.filter((word) => word.length >= MIN_PREFERRED_WORD_LENGTH))]
+  const shortWords = [...new Set(ranked.filter((word) => word.length < MIN_PREFERRED_WORD_LENGTH))]
+  const shortWordCount = Math.min(MAX_SHORT_WORDS_PER_LESSON, shortWords.length)
+  const longWordCount = Math.max(0, LESSON_WORD_COUNT - shortWordCount)
 
-  while (words.length < LESSON_WORD_COUNT) {
-    const nextWord = pool[pointer % pool.length]
-    const previous = words[words.length - 1]
-    const isShortWord = nextWord.length < MIN_PREFERRED_WORD_LENGTH
-
-    if ((!isShortWord || !enoughLongWords || shortWordCount < MAX_SHORT_WORDS_PER_LESSON) && (nextWord !== previous || pool.length === 1)) {
-      words.push(nextWord)
-      if (isShortWord) {
-        shortWordCount += 1
-      }
-    }
-
-    pointer += 1
-
-    if (pointer % pool.length === 0) {
-      pool.splice(0, pool.length, ...shuffleWords(ranked))
-    }
-  }
-
-  return words
+  return [...fillLessonSlots(longWords, longWordCount), ...fillLessonSlots(shortWords, shortWordCount)]
 }
 
 export function generateLesson(state: ProgressState, mode: PracticeMode, focusLetter: Letter | null): GeneratedLesson {

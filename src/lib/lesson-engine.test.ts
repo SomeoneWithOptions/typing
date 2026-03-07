@@ -14,8 +14,7 @@ describe('generateLesson', () => {
     expect(lesson.words.every((word) => [...word].every((letter) => allowed.has(letter as Letter)))).toBe(true)
     expect(lesson.words.every((word) => word.includes(latestUnlocked))).toBe(true)
     expect(lesson.targetLetters[0]).toBe(latestUnlocked)
-    expect(new Set(lesson.words).size).toBe(25)
-    expect(lesson.words.filter((word) => word.length === 3).length).toBeLessThanOrEqual(4)
+    expect(lesson.words.filter((word) => word.length === 3).length).toBeLessThanOrEqual(3)
   })
 
   it('centers adaptive lessons on the latest unlocked letter when newer letters are available', () => {
