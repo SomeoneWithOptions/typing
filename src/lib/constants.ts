@@ -1,11 +1,21 @@
-import type { Letter, UnlockSequence } from './types'
+import type { Letter, UnlockMetric, UnlockSequence, UnlockTargets } from './types'
 
-export const APP_VERSION = 1
+export const APP_VERSION = 2
 export const LESSON_WORD_COUNT = 25
 export const MAX_SESSION_HISTORY = 120
 export const UNLOCK_SAMPLE_TARGET = 40
 export const UNLOCK_WPM_TARGET = 24
 export const UNLOCK_ACCURACY_TARGET = 95
+export const DEFAULT_UNLOCK_TARGETS: UnlockTargets = {
+  hits: UNLOCK_SAMPLE_TARGET,
+  accuracy: UNLOCK_ACCURACY_TARGET,
+  wpm: UNLOCK_WPM_TARGET,
+}
+export const UNLOCK_TARGET_LIMITS: Record<UnlockMetric, { min: number; max: number; step: number }> = {
+  hits: { min: 1, max: 9999, step: 1 },
+  accuracy: { min: 10, max: 100, step: 1 },
+  wpm: { min: 10, max: 300, step: 1 },
+}
 export const MASTERY_WPM_TARGET = 40
 export const MASTERY_ACCURACY_TARGET = 97
 export const LESSON_IDLE_TIMEOUT_MS = 15_000

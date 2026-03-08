@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  DEFAULT_UNLOCK_TARGETS,
   UNLOCK_ACCURACY_TARGET,
   UNLOCK_SAMPLE_TARGET,
   UNLOCK_WPM_TARGET,
@@ -69,6 +70,56 @@ describe('typing store', () => {
     expect(state.lesson.focusLetter).toBe('q')
     expect(state.currentIndex).toBe(0)
     expect(state.attempts).toEqual([])
+  })
+
+  it('updates unlock targets without resetting the lesson or history', async () => {
+    const { useTypingStore } = await loadStoreModule()
+    const startingLesson = useTypingStore.getState().lesson
+
+    useTypingStore.setState({
+      isLoaded: true,
+      currentIndex: 3,
+      attempts: [
+        {
+          expected: 'e',
+          actual: 'e',
+          correct: true,
+          deltaMs: 180,
+          index: 0,
+          timestamp: 1000,
+        },
+      ],
+      progress: {
+        ...useTypingStore.getState().progress,
+        sessions: [
+          {
+            id: 'session-1',
+            mode: 'adaptive',
+            focusLetter: null,
+            startedAt: '2026-03-07T00:00:00.000Z',
+            endedAt: '2026-03-07T00:01:00.000Z',
+            words: ['learn'],
+            attempts: 5,
+            correctChars: 5,
+            accuracy: 100,
+            wpm: 42,
+            backspaces: 0,
+            weakLetters: ['e', 'n', 'i'],
+            unlockedAfterSession: ['e', 'n', 'i', 'a', 'r', 'l'],
+          },
+        ],
+      },
+    })
+
+    useTypingStore.getState().setUnlockTarget('hits', 65)
+    const state = useTypingStore.getState()
+
+    expect(state.progress.settings.unlockTargets.hits).toBe(65)
+    expect(state.progress.settings.unlockTargets.accuracy).toBe(DEFAULT_UNLOCK_TARGETS.accuracy)
+    expect(state.lesson).toBe(startingLesson)
+    expect(state.currentIndex).toBe(3)
+    expect(state.attempts).toHaveLength(1)
+    expect(state.progress.sessions).toHaveLength(1)
   })
 
   it('records correct and incorrect typed keys with the expected cursor movement', async () => {
@@ -393,6 +444,11 @@ describe('typing store', () => {
         settings: {
           mode: 'focus',
           focusLetter: 'q',
+          unlockTargets: {
+            hits: 90,
+            accuracy: 88,
+            wpm: 30,
+          },
         },
       },
       statusMessage: 'Custom',
@@ -407,6 +463,7 @@ describe('typing store', () => {
     expect(resetMock).toHaveBeenCalledTimes(1)
     expect(state.progress.settings.mode).toBe('adaptive')
     expect(state.progress.settings.focusLetter).toBe('t')
+    expect(state.progress.settings.unlockTargets).toEqual(DEFAULT_UNLOCK_TARGETS)
     expect(state.currentIndex).toBe(0)
     expect(state.backspaces).toBe(0)
     expect(state.statusMessage).toBe('Progress reset. Starter lesson ready.')

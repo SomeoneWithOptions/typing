@@ -29,6 +29,13 @@ export const ALPHABET = [
 
 export type Letter = (typeof ALPHABET)[number]
 export type PracticeMode = 'adaptive' | 'focus'
+export type UnlockMetric = 'hits' | 'accuracy' | 'wpm'
+
+export interface UnlockTargets {
+  hits: number
+  accuracy: number
+  wpm: number
+}
 
 export interface LetterStats {
   letter: Letter
@@ -90,6 +97,7 @@ export interface ProgressState {
   settings: {
     mode: PracticeMode
     focusLetter: Letter
+    unlockTargets: UnlockTargets
   }
 }
 

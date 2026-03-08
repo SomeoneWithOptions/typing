@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { LESSON_IDLE_TIMEOUT_MS } from './constants'
 import { generateLesson } from './lesson-engine'
 import {
+  clampUnlockTarget,
   createInitialProgressState,
   getUnlockStatus,
   getWeakLetters,
@@ -16,6 +17,7 @@ import type {
   PracticeMode,
   ProgressState,
   SessionKeyAttempt,
+  UnlockMetric,
 } from './types'
 
 const DEFAULT_STATUS_MESSAGE = 'Press into the practice area and start typing.'
@@ -128,6 +130,7 @@ export interface TypingStoreActions {
   hydrate: () => Promise<void>
   setMode: (mode: PracticeMode) => void
   setFocusLetter: (focusLetter: Letter) => void
+  setUnlockTarget: (metric: UnlockMetric, value: number) => void
   queueFreshLesson: () => void
   resetCurrentLetter: () => void
   handleTypedKey: (key: string) => void
@@ -203,6 +206,20 @@ export const useTypingStore = create<TypingStore>((set) => ({
         ...createLessonState(nextProgress),
       }
     })
+  },
+  setUnlockTarget(metric, value) {
+    set((state) => ({
+      progress: {
+        ...state.progress,
+        settings: {
+          ...state.progress.settings,
+          unlockTargets: {
+            ...state.progress.settings.unlockTargets,
+            [metric]: clampUnlockTarget(metric, value),
+          },
+        },
+      },
+    }))
   },
   queueFreshLesson() {
     set((state) => createLessonState(state.progress))

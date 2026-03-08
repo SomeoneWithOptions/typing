@@ -1,13 +1,13 @@
 import {
   APP_VERSION,
+  DEFAULT_UNLOCK_TARGETS,
   DEFAULT_FOCUS_LETTER,
   MASTERY_ACCURACY_TARGET,
   MASTERY_WPM_TARGET,
   MAX_SESSION_HISTORY,
-  UNLOCK_ACCURACY_TARGET,
   UNLOCK_SAMPLE_TARGET,
+  UNLOCK_TARGET_LIMITS,
   UNLOCK_SEQUENCE,
-  UNLOCK_WPM_TARGET,
 } from './constants'
 import { ALPHABET } from './types'
 import type {
@@ -17,11 +17,28 @@ import type {
   ProgressState,
   SessionKeyAttempt,
   SessionRecord,
+  UnlockMetric,
   UnlockStatus,
+  UnlockTargets,
 } from './types'
 
 function clamp(value: number, min = 0, max = 1) {
   return Math.min(Math.max(value, min), max)
+}
+
+export function clampUnlockTarget(metric: UnlockMetric, value: number) {
+  const { min, max, step } = UNLOCK_TARGET_LIMITS[metric]
+  const normalized = Number.isFinite(value) ? value : DEFAULT_UNLOCK_TARGETS[metric]
+  const stepped = min + Math.round((normalized - min) / step) * step
+  return Math.min(max, Math.max(min, stepped))
+}
+
+export function normalizeUnlockTargets(targets?: Partial<UnlockTargets> | null): UnlockTargets {
+  return {
+    hits: clampUnlockTarget('hits', targets?.hits ?? DEFAULT_UNLOCK_TARGETS.hits),
+    accuracy: clampUnlockTarget('accuracy', targets?.accuracy ?? DEFAULT_UNLOCK_TARGETS.accuracy),
+    wpm: clampUnlockTarget('wpm', targets?.wpm ?? DEFAULT_UNLOCK_TARGETS.wpm),
+  }
 }
 
 function getLowestMetric<T extends number>(
@@ -114,6 +131,7 @@ export function createInitialProgressState(timestamp = new Date().toISOString())
     settings: {
       mode: 'adaptive',
       focusLetter: DEFAULT_FOCUS_LETTER,
+      unlockTargets: normalizeUnlockTargets(),
     },
   }
 }
@@ -167,6 +185,7 @@ export function hydratingProgressState(input: ProgressState | null): ProgressSta
     input.nextUnlockLetter && isLetter(input.nextUnlockLetter) ? input.nextUnlockLetter : getRemainingUnlocks(unlockedLetters)[0] ?? null
 
   const mode: PracticeMode = input.settings?.mode === 'focus' ? 'focus' : 'adaptive'
+  const unlockTargets = normalizeUnlockTargets(input.settings?.unlockTargets)
 
   return {
     ...base,
@@ -180,6 +199,7 @@ export function hydratingProgressState(input: ProgressState | null): ProgressSta
       focusLetter:
         input.settings && isLetter(input.settings.focusLetter) ? input.settings.focusLetter : DEFAULT_FOCUS_LETTER,
       mode,
+      unlockTargets,
     },
     sessions: input.sessions.slice(0, MAX_SESSION_HISTORY),
   }
@@ -198,13 +218,14 @@ export function getWeakLetters(state: ProgressState, count = 3) {
 
 export function getUnlockStatus(state: ProgressState): UnlockStatus {
   const unlockedLetters = state.unlockedLetters
+  const { hits, accuracy, wpm } = state.settings.unlockTargets
   const bottleneckLetter =
     unlockedLetters.length > 0
       ? [...unlockedLetters].sort((a, b) => getLetterWeakness(state.letterStats[b]) - getLetterWeakness(state.letterStats[a]))[0]
       : null
-  const sampleStatus = getLowestMetric(unlockedLetters, (letter) => state.letterStats[letter].correctHits, UNLOCK_SAMPLE_TARGET)
-  const accuracyStatus = getLowestMetric(unlockedLetters, (letter) => getLetterAccuracy(state.letterStats[letter]), UNLOCK_ACCURACY_TARGET)
-  const speedStatus = getLowestMetric(unlockedLetters, (letter) => getLetterWpm(state.letterStats[letter]), UNLOCK_WPM_TARGET)
+  const sampleStatus = getLowestMetric(unlockedLetters, (letter) => state.letterStats[letter].correctHits, hits)
+  const accuracyStatus = getLowestMetric(unlockedLetters, (letter) => getLetterAccuracy(state.letterStats[letter]), accuracy)
+  const speedStatus = getLowestMetric(unlockedLetters, (letter) => getLetterWpm(state.letterStats[letter]), wpm)
 
   if (!state.nextUnlockLetter) {
     return {
@@ -308,12 +329,14 @@ export function canUnlockNextLetter(state: ProgressState) {
     return false
   }
 
+  const { hits, accuracy, wpm } = state.settings.unlockTargets
+
   return state.unlockedLetters.every((letter) => {
     const stats = state.letterStats[letter]
     return (
-      stats.correctHits >= UNLOCK_SAMPLE_TARGET &&
-      getLetterAccuracy(stats) >= UNLOCK_ACCURACY_TARGET &&
-      getLetterWpm(stats) >= UNLOCK_WPM_TARGET
+      stats.correctHits >= hits &&
+      getLetterAccuracy(stats) >= accuracy &&
+      getLetterWpm(stats) >= wpm
     )
   })
 }

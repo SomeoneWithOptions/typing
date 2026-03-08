@@ -226,7 +226,7 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1rem;
   margin-top: 6rem;
   contain: layout;
 }
@@ -238,8 +238,8 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   font-size: 0.9rem;
   color: var(--t-muted);
   align-items: baseline;
-  column-gap: clamp(1rem, 3vw, 2rem);
-  width: min(100%, 60rem);
+  column-gap: clamp(1.5rem, 4vw, 3rem);
+  width: min(100%, 64rem);
   min-height: 1.75rem;
 }
 
@@ -248,11 +248,11 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 2rem;
+  gap: clamp(1rem, 2.4vw, 1.9rem);
 }
 
 .unlock-progress-strip .metric-item {
-  min-width: 7.5rem;
+  min-width: 8.75rem;
   justify-content: center;
 }
 
@@ -266,6 +266,7 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   color: var(--t-muted);
   min-height: 1em;
   min-width: 17ch;
+  margin-bottom: 0.2rem;
 }
 
 .unlock-progress-strip__title-text {
@@ -283,6 +284,89 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
 .unlock-progress-strip__title-text--hidden {
   opacity: 0;
   transform: translateY(0.35rem);
+}
+
+.unlock-target-chip {
+  min-height: 2.45rem;
+  padding: 0.45rem 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+  border-radius: 999px;
+  background: transparent;
+  transition:
+    border-color var(--ease),
+    background var(--ease),
+    color var(--ease),
+    transform 200ms ease;
+}
+
+button.unlock-target-chip:hover,
+button.unlock-target-chip:focus-visible {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  transform: translateY(-1px);
+}
+
+button.unlock-target-chip:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 28%, rgba(255, 255, 255, 0.08));
+}
+
+.unlock-target-chip--editing {
+  border-color: color-mix(in srgb, var(--accent) 35%, rgba(255, 255, 255, 0.08));
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.unlock-target-editor {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.12rem;
+}
+
+.unlock-target-editor strong {
+  white-space: nowrap;
+}
+
+.unlock-target-editor__input {
+  width: 4ch;
+  padding: 0;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, rgba(255, 255, 255, 0.12));
+  background: transparent;
+  color: var(--t-primary);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 600;
+  line-height: 1;
+  text-align: left;
+  outline: none;
+  appearance: textfield;
+}
+
+.unlock-target-editor__input::-webkit-outer-spin-button,
+.unlock-target-editor__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.unlock-target-editor__input--error {
+  border-bottom-color: color-mix(in srgb, var(--error) 75%, transparent);
+  color: var(--error);
+}
+
+.unlock-target-editor__suffix {
+  color: var(--t-secondary);
+}
+
+.unlock-progress-strip__hint {
+  min-height: 0.95rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--t-secondary);
+  text-align: center;
+}
+
+.unlock-progress-strip__hint--error {
+  color: var(--error);
 }
 
 .metric-item--next-letter {
@@ -312,8 +396,28 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
 
   .unlock-progress-strip__core,
   .unlock-progress-strip__title-text,
-  .metric-item--next-letter {
+  .metric-item--next-letter,
+  .unlock-target-chip {
     transition: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .unlock-progress-strip {
+    grid-template-columns: 1fr;
+    row-gap: 0.8rem;
+    justify-items: center;
+  }
+
+  .unlock-progress-strip__core {
+    grid-column: auto;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .metric-item--next-letter {
+    grid-column: auto;
+    justify-self: center;
   }
 }
 
