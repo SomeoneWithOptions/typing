@@ -118,6 +118,22 @@ export function createInitialProgressState(timestamp = new Date().toISOString())
   }
 }
 
+export function resetLetterProgress(state: ProgressState, letter: Letter, timestamp = new Date().toISOString()): ProgressState {
+  const baseStats = createLetterStats(letter, state.unlockedLetters.includes(letter), timestamp)
+  const previousStats = state.letterStats[letter]
+
+  return {
+    ...state,
+    letterStats: {
+      ...state.letterStats,
+      [letter]: {
+        ...baseStats,
+        unlockedAt: previousStats.unlockedAt ?? baseStats.unlockedAt,
+      },
+    },
+  }
+}
+
 export function hydratingProgressState(input: ProgressState | null): ProgressState {
   if (!input) {
     return createInitialProgressState()

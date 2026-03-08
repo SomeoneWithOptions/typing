@@ -1,9 +1,11 @@
 import { useEffect, useRef, useTransition, type KeyboardEvent, type ReactNode } from 'react'
+import { flushSync } from 'react-dom'
 import { useShallow } from 'zustand/shallow'
 import './App.css'
 import { KeyboardMap } from './components/KeyboardMap'
 import {
   ALPHABET,
+  type GeneratedLesson,
   type Letter,
 } from './lib/types'
 import {
@@ -38,6 +40,57 @@ function formatWpm(value: number) {
   return `${Math.round(value)}`
 }
 
+function renderPracticeWords(
+  lesson: Pick<GeneratedLesson, 'id' | 'text'>,
+  currentIndex?: number,
+  errorIndex?: number | null,
+) {
+  const elements: ReactNode[] = []
+  const text = lesson.text
+  let i = 0
+
+  while (i < text.length) {
+    const wordStart = i
+    const wordChars: ReactNode[] = []
+
+    while (i < text.length && text[i] !== ' ') {
+      const cls = ['practice-text__char']
+      if (typeof currentIndex === 'number' && i < currentIndex) cls.push('practice-text__char--done')
+      if (typeof currentIndex === 'number' && i === currentIndex) cls.push('practice-text__char--current')
+      if (errorIndex === i) cls.push('practice-text__char--error')
+      wordChars.push(
+        <span className={cls.join(' ')} key={`${lesson.id}-${i}`}>{text[i]}</span>,
+      )
+      i += 1
+    }
+
+    if (i < text.length && text[i] === ' ') {
+      const cls = ['practice-text__char', 'practice-text__char--space']
+      if (typeof currentIndex === 'number' && i < currentIndex) cls.push('practice-text__char--done')
+      if (typeof currentIndex === 'number' && i === currentIndex) cls.push('practice-text__char--current')
+      if (errorIndex === i) cls.push('practice-text__char--error')
+      wordChars.push(
+        <span className={cls.join(' ')} key={`${lesson.id}-${i}`}> </span>,
+      )
+      i += 1
+    }
+
+    elements.push(
+      <span className="practice-text__word" key={`${lesson.id}-w${wordStart}`}>
+        {wordChars}
+      </span>,
+    )
+  }
+
+  return elements
+}
+
+type DocumentWithViewTransition = Document & {
+  startViewTransition?: (updateCallback: () => void) => {
+    finished: Promise<void>
+  }
+}
+
 export default function App() {
   const {
     progress,
@@ -52,6 +105,7 @@ export default function App() {
     setMode,
     setFocusLetter,
     queueFreshLesson,
+    resetCurrentLetter,
     handleTypedKey,
     handleBackspace,
     resetProgress,
@@ -71,6 +125,7 @@ export default function App() {
       setMode: state.setMode,
       setFocusLetter: state.setFocusLetter,
       queueFreshLesson: state.queueFreshLesson,
+      resetCurrentLetter: state.resetCurrentLetter,
       handleTypedKey: state.handleTypedKey,
       handleBackspace: state.handleBackspace,
       resetProgress: state.resetProgress,
@@ -88,8 +143,9 @@ export default function App() {
   const lastAttempt = attempts[attempts.length - 1] ?? null
   const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
   const recentSessions = progress.sessions.slice(0, 5)
+  const isFocusMode = progress.settings.mode === 'focus'
 
-  const currentLetter = lesson.targetLetters[0] ?? (progress.settings.mode === 'focus' ? progress.settings.focusLetter : unlockStatus.bottleneckLetter)
+  const currentLetter = lesson.targetLetters[0] ?? (isFocusMode ? progress.settings.focusLetter : unlockStatus.bottleneckLetter)
 
   useEffect(() => { void hydrate() }, [hydrate])
 
@@ -119,6 +175,29 @@ export default function App() {
     await resetProgress()
   }
 
+  function handleResetCurrentLetter() {
+    const label = currentLetter ? currentLetter.toUpperCase() : 'current letter'
+    const confirmed = window.confirm(`Reset progress for ${label}?`)
+    if (!confirmed) return
+    runUiTransition(() => resetCurrentLetter())
+  }
+
+  function runUiTransition(update: () => void) {
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const documentWithTransition = document as DocumentWithViewTransition
+
+    if (!documentWithTransition.startViewTransition || reducedMotion) {
+      startTransition(() => update())
+      return
+    }
+
+    documentWithTransition.startViewTransition(() => {
+      flushSync(() => {
+        update()
+      })
+    })
+  }
+
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (!isLoaded || event.metaKey || event.ctrlKey || event.altKey) return
     if (event.key === 'Tab') return
@@ -145,182 +224,164 @@ export default function App() {
     <>
       <div className="mobile-overlay">only available on desktop</div>
       <div className="app-shell">
-        <header className="topbar">
-        <div className="topbar-mid">
-          <span className="brand">typing</span>
-          <button
-            className={progress.settings.mode === 'adaptive' ? 'btn btn--active' : 'btn'}
-            onClick={() => startTransition(() => setMode('adaptive'))}
-            type="button"
-          >
-            adaptive
-          </button>
-          <button
-            className={progress.settings.mode === 'focus' ? 'btn btn--active' : 'btn'}
-            onClick={() => startTransition(() => setMode('focus'))}
-            type="button"
-          >
-            focus
-          </button>
-          <label className="target-select">
-            <span>key</span>
-            <select
-              value={progress.settings.focusLetter}
-              onChange={(e) => startTransition(() => setFocusLetter(e.target.value as Letter))}
+        <main className="workspace">
+          <div className="typing-container">
+            <div className="control-stack">
+              <div className="control-row control-row--modes">
+                <button
+                  aria-pressed={progress.settings.mode === 'adaptive'}
+                  className={progress.settings.mode === 'adaptive' ? 'btn btn--minimal btn--active' : 'btn btn--minimal'}
+                  onClick={() => runUiTransition(() => setMode('adaptive'))}
+                  type="button"
+                >
+                  adaptive
+                </button>
+                <button
+                  aria-pressed={progress.settings.mode === 'focus'}
+                  className={progress.settings.mode === 'focus' ? 'btn btn--minimal btn--active' : 'btn btn--minimal'}
+                  onClick={() => runUiTransition(() => setMode('focus'))}
+                  type="button"
+                >
+                  focus
+                </button>
+                {progress.settings.mode === 'focus' ? (
+                  <label className="target-select" htmlFor="focus-letter">
+                    <span>key</span>
+                    <select
+                      id="focus-letter"
+                      value={progress.settings.focusLetter}
+                      onChange={(e) => runUiTransition(() => setFocusLetter(e.target.value as Letter))}
+                    >
+                      {ALPHABET.map((letter) => (
+                        <option key={letter} value={letter}>{letter.toUpperCase()}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+
+              <div className="control-row control-row--actions">
+                <button className="btn btn--minimal" onClick={() => runUiTransition(() => queueFreshLesson())} type="button">
+                  new lesson
+                </button>
+                <button className="btn btn--minimal" onClick={handleResetCurrentLetter} type="button">
+                  reset letter
+                </button>
+                <button className="btn btn--minimal btn--danger" onClick={() => void handleResetProgress()} type="button">
+                  reset all
+                </button>
+              </div>
+            </div>
+
+            <div className="live-metrics">
+              <div className="metric-item">
+                <span>wpm</span>
+                <strong>{formatWpm(liveWpm)}</strong>
+              </div>
+              <div className="metric-item">
+                <span>acc</span>
+                <strong>{formatPercent(liveAccuracy)}</strong>
+              </div>
+              <div className="metric-item">
+                <span>key</span>
+                <strong>{currentLetter?.toUpperCase() ?? '—'}</strong>
+              </div>
+            </div>
+
+            <div
+              aria-label="Typing practice surface"
+              className="practice-surface"
+              onBlur={() => setHasFocus(false)}
+              onFocus={() => setHasFocus(true)}
+              onKeyDown={handleKeyDown}
+              ref={practiceRef}
+              role="textbox"
+              tabIndex={0}
             >
-              {ALPHABET.map((letter) => (
-                <option key={letter} value={letter}>{letter.toUpperCase()}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="topbar-end">
-          <button className="btn" onClick={() => startTransition(() => queueFreshLesson())} type="button">
-            new lesson
-          </button>
-          <button className="btn btn--danger" onClick={() => void handleResetProgress()} type="button">
-            reset
-          </button>
-        </div>
-      </header>
-
-      <main className="workspace">
-        <div className="typing-container">
-          <div className="live-metrics">
-            <div className="metric-item">
-              <span>wpm</span>
-              <strong>{formatWpm(liveWpm)}</strong>
-            </div>
-            <div className="metric-item">
-              <span>acc</span>
-              <strong>{formatPercent(liveAccuracy)}</strong>
-            </div>
-            <div className="metric-item">
-              <span>key</span>
-              <strong>{currentLetter?.toUpperCase() ?? '—'}</strong>
-            </div>
-          </div>
-
-          <div
-            aria-label="Typing practice surface"
-            className="practice-text"
-            onBlur={() => setHasFocus(false)}
-            onFocus={() => setHasFocus(true)}
-            onKeyDown={handleKeyDown}
-            ref={practiceRef}
-            role="textbox"
-            tabIndex={0}
-          >
-            {isPending ? (
-              <span style={{ color: 'var(--t-muted)' }}>Preparing lesson…</span>
-            ) : (
-              (() => {
-                const elements: ReactNode[] = []
-                const text = lesson.text
-                let i = 0
-
-                while (i < text.length) {
-                  const wordStart = i
-                  const wordChars: ReactNode[] = []
-
-                  // Collect word letters
-                  while (i < text.length && text[i] !== ' ') {
-                    const cls = ['practice-text__char']
-                    if (i < currentIndex) cls.push('practice-text__char--done')
-                    if (i === currentIndex) cls.push('practice-text__char--current')
-                    if (errorIndex === i) cls.push('practice-text__char--error')
-                    wordChars.push(
-                      <span className={cls.join(' ')} key={`${lesson.id}-${i}`}>{text[i]}</span>
-                    )
-                    i += 1
-                  }
-
-                  // Collect following space (if any) and attach to the word
-                  if (i < text.length && text[i] === ' ') {
-                    const cls = ['practice-text__char', 'practice-text__char--space']
-                    if (i < currentIndex) cls.push('practice-text__char--done')
-                    if (i === currentIndex) cls.push('practice-text__char--current')
-                    if (errorIndex === i) cls.push('practice-text__char--error')
-                    wordChars.push(
-                      <span className={cls.join(' ')} key={`${lesson.id}-${i}`}> </span>
-                    )
-                    i += 1
-                  }
-
-                  elements.push(
-                    <span className="practice-text__word" key={`${lesson.id}-w${wordStart}`}>
-                      {wordChars}
-                    </span>
-                  )
-                }
-
-                return elements
-              })()
-            )}
-          </div>
-          <div className="unlock-progress-container">
-            <h3 className="unlock-progress-strip__title">unlock progress</h3>
-            <div className="unlock-progress-strip">
-              <div className="metric-item">
-                <span>{`hits${unlockStatus.sampleLetter ? ` ${unlockStatus.sampleLetter.toUpperCase()}` : ''}`}</span>
-                <strong className={unlockStatus.sampleProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
-                  {formatNumber(unlockStatus.sampleHits)}/{UNLOCK_SAMPLE_TARGET}
-                </strong>
-              </div>
-
-              <div className="metric-item">
-                <span>{`acc${unlockStatus.accuracyLetter ? ` ${unlockStatus.accuracyLetter.toUpperCase()}` : ''}`}</span>
-                <strong className={unlockStatus.accuracyProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
-                  {formatPercent(unlockStatus.accuracyValue)}/{UNLOCK_ACCURACY_TARGET}%
-                </strong>
-              </div>
-
-              <div className="metric-item">
-                <span>{`wpm${unlockStatus.speedLetter ? ` ${unlockStatus.speedLetter.toUpperCase()}` : ''}`}</span>
-                <strong className={unlockStatus.speedProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
-                  {formatNumber(truncate(unlockStatus.speedWpm, 2), 2)}/{UNLOCK_WPM_TARGET}
-                </strong>
-              </div>
-
-              <div className="metric-item">
-                <span>next letter</span>
-                <strong>{unlockStatus.nextLetter?.toUpperCase() ?? '—'}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <section className="secondary-info">
-          <div className="sessions-group">
-            <h3 className="info-section-title">Recent Sessions</h3>
-            <div className="sessions-list">
-              {recentSessions.length === 0 ? (
-                <div className="session-row--empty">Finish a lesson to see your history.</div>
+              {isPending ? (
+                <span style={{ color: 'var(--t-muted)' }}>Preparing lesson…</span>
               ) : (
-                recentSessions.map((session) => (
-                  <div className="session-row" key={session.id}>
-                    <span>{session.mode === 'focus' && session.focusLetter ? `focus ${session.focusLetter.toUpperCase()}` : 'adaptive'}</span>
-                    <span>{formatWpm(session.wpm)} wpm</span>
-                    <span>{formatPercent(session.accuracy)}</span>
-                    <span>{new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <div className="practice-text-stage">
+                  <div className="practice-text">
+                    {renderPracticeWords(lesson, currentIndex, errorIndex)}
                   </div>
-                ))
+                </div>
               )}
             </div>
+            <div className="unlock-progress-container">
+              <h3 className="unlock-progress-strip__title">
+                <span className={isFocusMode ? 'unlock-progress-strip__title-text unlock-progress-strip__title-text--hidden' : 'unlock-progress-strip__title-text'}>
+                  unlock progress
+                </span>
+                <span className={isFocusMode ? 'unlock-progress-strip__title-text' : 'unlock-progress-strip__title-text unlock-progress-strip__title-text--hidden'}>
+                  mastery progress
+                </span>
+              </h3>
+              <div className="unlock-progress-strip">
+                <div className="unlock-progress-strip__core">
+                  <div className="metric-item">
+                    <span>hits</span>
+                    <strong className={unlockStatus.sampleProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
+                      {formatNumber(unlockStatus.sampleHits)}/{UNLOCK_SAMPLE_TARGET}
+                    </strong>
+                  </div>
+
+                  <div className="metric-item">
+                    <span>acc</span>
+                    <strong className={unlockStatus.accuracyProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
+                      {formatPercent(unlockStatus.accuracyValue)}/{UNLOCK_ACCURACY_TARGET}%
+                    </strong>
+                  </div>
+
+                  <div className="metric-item">
+                    <span>wpm</span>
+                    <strong className={unlockStatus.speedProgress >= 1 ? 'metric--met' : 'metric--unmet'}>
+                      {formatNumber(truncate(unlockStatus.speedWpm, 2), 2)}/{UNLOCK_WPM_TARGET}
+                    </strong>
+                  </div>
+                </div>
+                <div
+                  aria-hidden={isFocusMode}
+                  className={isFocusMode ? 'metric-item metric-item--next-letter metric-item--next-letter-hidden' : 'metric-item metric-item--next-letter'}
+                >
+                  <span>next letter</span>
+                  <strong>{unlockStatus.nextLetter?.toUpperCase() ?? '—'}</strong>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <aside className="keyboard-section">
-            <h3 className="info-section-title">Keyboard Map</h3>
-            <KeyboardMap />
-            <div style={{ marginTop: '2rem' }}>
-              <span className="letter-count" style={{ color: 'var(--t-muted)', fontSize: '0.8rem' }}>
-                {progress.unlockedLetters.length}/26 letters unlocked
-              </span>
+          <section className="secondary-info">
+            <div className="sessions-group">
+              <h3 className="info-section-title">Recent Sessions</h3>
+              <div className="sessions-list">
+                {recentSessions.length === 0 ? (
+                  <div className="session-row--empty">Finish a lesson to see your history.</div>
+                ) : (
+                  recentSessions.map((session) => (
+                    <div className="session-row" key={session.id}>
+                      <span>{session.mode === 'focus' && session.focusLetter ? `focus ${session.focusLetter.toUpperCase()}` : 'adaptive'}</span>
+                      <span>{formatWpm(session.wpm)} wpm</span>
+                      <span>{formatPercent(session.accuracy)}</span>
+                      <span>{new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-          </aside>
-        </section>
-      </main>
-    </div>
+
+            <aside className="keyboard-section">
+              <h3 className="info-section-title">Keyboard Map</h3>
+              <KeyboardMap />
+              <div style={{ marginTop: '2rem' }}>
+                <span className="letter-count" style={{ color: 'var(--t-muted)', fontSize: '0.8rem' }}>
+                  {progress.unlockedLetters.length}/26 letters unlocked
+                </span>
+              </div>
+            </aside>
+          </section>
+        </main>
+      </div>
     </>
   )
 }

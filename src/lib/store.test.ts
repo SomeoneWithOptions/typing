@@ -411,4 +411,58 @@ describe('typing store', () => {
     expect(state.backspaces).toBe(0)
     expect(state.statusMessage).toBe('Progress reset. Starter lesson ready.')
   })
+
+  it('resets only the current letter stats and keeps the rest of progress intact', async () => {
+    const { useTypingStore } = await loadStoreModule()
+    const progress = createInitialProgressState()
+    const lesson: GeneratedLesson = {
+      id: 'reset-letter-test',
+      mode: 'adaptive',
+      focusLetter: null,
+      words: ['e'],
+      text: 'e',
+      targetLetters: ['e'],
+    }
+
+    progress.letterStats.e = {
+      ...progress.letterStats.e,
+      attempts: 14,
+      correctHits: 11,
+      totalCorrectMs: 3200,
+      smoothedMs: 260,
+      fastestWpm: 41,
+      lastPracticedAt: '2026-03-07T12:00:00.000Z',
+      masteredAt: '2026-03-07T12:00:00.000Z',
+    }
+    progress.letterStats.n = {
+      ...progress.letterStats.n,
+      attempts: 9,
+      correctHits: 8,
+    }
+
+    useTypingStore.setState({
+      progress,
+      lesson,
+      isLoaded: true,
+      currentIndex: 4,
+      backspaces: 3,
+      statusMessage: 'Custom',
+    })
+
+    useTypingStore.getState().resetCurrentLetter()
+    const state = useTypingStore.getState()
+
+    expect(state.progress.letterStats.e.attempts).toBe(0)
+    expect(state.progress.letterStats.e.correctHits).toBe(0)
+    expect(state.progress.letterStats.e.smoothedMs).toBeNull()
+    expect(state.progress.letterStats.e.fastestWpm).toBe(0)
+    expect(state.progress.letterStats.e.lastPracticedAt).toBeNull()
+    expect(state.progress.letterStats.e.masteredAt).toBeNull()
+    expect(state.progress.letterStats.e.unlockedAt).toBe(progress.letterStats.e.unlockedAt)
+    expect(state.progress.letterStats.n.attempts).toBe(9)
+    expect(state.progress.sessions).toEqual(progress.sessions)
+    expect(state.currentIndex).toBe(0)
+    expect(state.backspaces).toBe(0)
+    expect(state.statusMessage).toBe('E reset.')
+  })
 })

@@ -4,8 +4,6 @@
   --font-ui: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Azeret Mono', monospace;
 
-  --header-h: 64px;
-
   /* Obsidian Depth Palette */
   --bg-root: #0f0f0f;
   --bg-surface: #1a1a1a;
@@ -73,42 +71,10 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4rem 1.5rem;
+  padding: 2.25rem 1.5rem 4rem;
   width: 100%;
   max-width: 1000px;
   margin: 0 auto;
-}
-
-/* ─── Topbar ─── */
-
-.topbar {
-  height: var(--header-h);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2rem;
-  border-bottom: 1px solid var(--b-subtle);
-  width: 100%;
-  flex-shrink: 0;
-}
-
-.brand {
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  color: var(--t-primary);
-}
-
-.topbar-mid {
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.topbar-end {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
 }
 
 /* ─── Typing Area ─── */
@@ -122,16 +88,58 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   min-height: 50vh;
 }
 
+.control-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 4rem;
+  width: 100%;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.35rem;
+  border: 1px solid var(--b-normal);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.control-row--actions {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015)),
+    rgba(255, 255, 255, 0.015);
+}
+
+.practice-surface {
+  width: 100%;
+  outline: none;
+  contain: layout;
+}
+
+.practice-text-stage {
+  width: 100%;
+  min-height: calc(2.25rem * 1.6 * 3);
+}
+
 .practice-text {
+  width: 100%;
   font-family: var(--font-mono);
   font-size: 2.25rem;
   line-height: 1.6;
   color: var(--t-dim);
-  outline: none;
   user-select: none;
   word-wrap: break-word;
   text-align: left;
   max-width: 100%;
+  min-height: inherit;
   transition: color var(--ease);
   display: flex;
   flex-wrap: wrap;
@@ -220,25 +228,145 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   align-items: center;
   gap: 1.5rem;
   margin-top: 6rem;
+  contain: layout;
 }
 
 .unlock-progress-strip {
-  display: flex;
-  gap: 2rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   font-family: var(--font-mono);
   font-size: 0.9rem;
   color: var(--t-muted);
-  justify-content: center;
   align-items: baseline;
+  column-gap: clamp(1rem, 3vw, 2rem);
+  width: min(100%, 60rem);
+  min-height: 1.75rem;
+}
+
+.unlock-progress-strip__core {
+  grid-column: 2;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2rem;
+}
+
+.unlock-progress-strip .metric-item {
+  min-width: 7.5rem;
+  justify-content: center;
 }
 
 .unlock-progress-strip__title {
+  position: relative;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 0.7rem;
   font-weight: 600;
   font-family: var(--font-ui);
   color: var(--t-muted);
+  min-height: 1em;
+  min-width: 17ch;
+}
+
+.unlock-progress-strip__title-text {
+  position: absolute;
+  inset: 0;
+  white-space: nowrap;
+  text-align: center;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 220ms ease,
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.unlock-progress-strip__title-text--hidden {
+  opacity: 0;
+  transform: translateY(0.35rem);
+}
+
+.metric-item--next-letter {
+  grid-column: 3;
+  justify-self: end;
+  white-space: nowrap;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  filter: blur(0);
+  transition:
+    opacity 180ms ease,
+    transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.metric-item--next-letter-hidden {
+  opacity: 0;
+  transform: translate3d(0.8rem, 0, 0);
+  filter: blur(4px);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .practice-text {
+    transition: color var(--ease);
+  }
+
+  .unlock-progress-strip__core,
+  .unlock-progress-strip__title-text,
+  .metric-item--next-letter {
+    transition: none;
+  }
+}
+
+@supports (view-transition-name: none) {
+  .practice-surface {
+    view-transition-name: practice-surface;
+  }
+
+  .unlock-progress-container {
+    view-transition-name: progress-strip;
+  }
+
+  ::view-transition-old(practice-surface),
+  ::view-transition-new(practice-surface),
+  ::view-transition-old(progress-strip),
+  ::view-transition-new(progress-strip) {
+    animation-duration: 420ms;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  ::view-transition-old(practice-surface),
+  ::view-transition-old(progress-strip) {
+    animation-name: content-fade-out;
+  }
+
+  ::view-transition-new(practice-surface),
+  ::view-transition-new(progress-strip) {
+    animation-name: content-fade-in;
+  }
+
+  @keyframes content-fade-out {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    to {
+      opacity: 0;
+      transform: translateY(-0.4rem);
+    }
+  }
+
+  @keyframes content-fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.65rem);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 /* ─── Secondary Sections ─── */
@@ -406,29 +534,83 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   color: var(--accent);
 }
 
-.btn--danger:hover {
+.btn--minimal {
+  min-height: 2.25rem;
+  padding: 0.55rem 0.95rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.btn--minimal:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--t-primary);
+}
+
+.btn--minimal.btn--active {
+  color: #04231c;
+  border-color: color-mix(in srgb, var(--accent) 55%, rgba(255, 255, 255, 0.1));
+  background: linear-gradient(180deg, color-mix(in srgb, white 10%, var(--accent)), var(--accent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.btn--minimal:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 40%, rgba(255, 255, 255, 0.12));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.btn--danger {
+  color: color-mix(in srgb, var(--error) 55%, var(--t-secondary));
+}
+
+.btn--danger:hover,
+.btn--danger:focus-visible {
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  background: rgba(255, 107, 157, 0.1);
   color: var(--error);
 }
 
 .target-select {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  font-size: 0.85rem;
+  gap: 0.55rem;
+  min-height: 2.25rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.78rem;
   color: var(--t-muted);
 }
 
+.target-select span {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--t-secondary);
+}
+
 .target-select select {
-  background: var(--bg-surface);
-  border: 1px solid var(--b-normal);
-  border-radius: var(--r-small);
+  min-height: 1.9rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
   color: var(--t-primary);
-  padding: 0.25rem 0.5rem;
+  padding: 0.3rem 0.8rem 0.3rem 0.65rem;
   outline: none;
 }
 
 .target-select select:focus {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.target-select:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 /* ─── Utility ─── */

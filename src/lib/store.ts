@@ -1,7 +1,13 @@
 import { create } from 'zustand'
 import { LESSON_IDLE_TIMEOUT_MS } from './constants'
 import { generateLesson } from './lesson-engine'
-import { createInitialProgressState, getWeakLetters, updateProgressFromSession } from './progression'
+import {
+  createInitialProgressState,
+  getUnlockStatus,
+  getWeakLetters,
+  resetLetterProgress,
+  updateProgressFromSession,
+} from './progression'
 import { getAccuracy, getWpm } from './session-metrics'
 import { indexedDbStorage } from './storage'
 import type {
@@ -36,6 +42,10 @@ function createLesson(progress: ProgressState) {
     progress.settings.mode,
     progress.settings.mode === 'focus' ? progress.settings.focusLetter : null,
   )
+}
+
+function getCurrentLetter(progress: ProgressState, lesson: GeneratedLesson) {
+  return lesson.targetLetters[0] ?? (progress.settings.mode === 'focus' ? progress.settings.focusLetter : getUnlockStatus(progress).bottleneckLetter)
 }
 
 function createLessonState(progress: ProgressState, timestamp = Date.now()) {
@@ -119,6 +129,7 @@ export interface TypingStoreActions {
   setMode: (mode: PracticeMode) => void
   setFocusLetter: (focusLetter: Letter) => void
   queueFreshLesson: () => void
+  resetCurrentLetter: () => void
   handleTypedKey: (key: string) => void
   handleBackspace: () => void
   completeLesson: (nextAttempts: SessionKeyAttempt[], finishedAt: number, nextMetricAttempts?: SessionKeyAttempt[]) => void
@@ -195,6 +206,22 @@ export const useTypingStore = create<TypingStore>((set) => ({
   },
   queueFreshLesson() {
     set((state) => createLessonState(state.progress))
+  },
+  resetCurrentLetter() {
+    set((state) => {
+      const currentLetter = getCurrentLetter(state.progress, state.lesson)
+      if (!currentLetter) {
+        return {}
+      }
+
+      const nextProgress = resetLetterProgress(state.progress, currentLetter)
+
+      return {
+        progress: nextProgress,
+        statusMessage: `${currentLetter.toUpperCase()} reset.`,
+        ...createLessonState(nextProgress),
+      }
+    })
   },
   handleTypedKey(key) {
     set((state) => {
