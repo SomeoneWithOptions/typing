@@ -14,11 +14,6 @@ export function KeyboardMap() {
     toggleLetterLock(letter)
   }
 
-  function handleToggleLock(event: React.MouseEvent, letter: Letter) {
-    event.stopPropagation()
-    toggleLetterLock(letter)
-  }
-
   return (
     <div className="kbd" aria-label="Large keyboard map">
       <div className="kbd__board">
@@ -58,15 +53,6 @@ export function KeyboardMap() {
                   }}
                 >
                   <span className="kbd__letter">{letter.toUpperCase()}</span>
-                  
-                  {/* Lock icon - always visible on locked keys, subtle on unlocked ones */}
-                  <span
-                    className={`kbd__lock-toggle ${unlocked ? 'kbd__lock-toggle--unlocked' : 'kbd__lock-toggle--locked'}`}
-                    onClick={(e) => handleToggleLock(e, letter)}
-                    title={unlocked ? 'Lock this letter' : 'Unlock this letter'}
-                  >
-                    {unlocked ? '🔓' : '🔒'}
-                  </span>
                 </div>
               )
             })}

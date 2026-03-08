@@ -259,6 +259,12 @@ export default function App() {
   }, [tickClock])
 
   useEffect(() => {
+    if (isLoaded && !editingMetric) {
+      practiceRef.current?.focus()
+    }
+  }, [lesson.id, isLoaded, editingMetric])
+
+  useEffect(() => {
     if (!editingMetric) {
       return
     }

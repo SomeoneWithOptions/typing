@@ -754,37 +754,6 @@ button.unlock-target-chip:focus-visible {
   transition: color 150ms ease;
 }
 
-/* Lock toggle icon */
-.kbd__lock-toggle {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  font-size: 1rem;
-  line-height: 1;
-  opacity: 0.15;
-  transition: opacity 150ms ease, transform 150ms ease;
-  z-index: 2;
-}
-
-/* Show lock icon clearly for locked keys */
-.kbd__lock-toggle--locked {
-  opacity: 1 !important;
-  transform: scale(1.1);
-}
-
-.kbd__lock-toggle--unlocked {
-  opacity: 0.2;
-}
-
-.kbd__key:hover .kbd__lock-toggle--unlocked {
-  opacity: 0.6;
-}
-
-.kbd__lock-toggle:hover {
-  opacity: 1 !important;
-  transform: scale(1.2);
-}
-
 /* ─── Key States ─── */
 
 /* Locked */
