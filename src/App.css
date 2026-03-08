@@ -688,225 +688,144 @@ button.unlock-target-chip:focus-visible {
 
 /* ─── Keyboard Section Wrapper ─── */
 
-.keyboard-section {
-  width: min(100%, 52rem);
-  margin: 0 auto;
-  padding: 1.75rem 1.75rem 1.35rem;
-  border: 1px solid var(--b-subtle);
-  border-radius: 1.25rem;
-  background: var(--bg-surface);
-}
-
-.keyboard-section__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem 1.5rem;
-  flex-wrap: wrap;
-  margin-bottom: 1.5rem;
-}
-
-.keyboard-section__header .info-section-title {
-  margin-bottom: 0.4rem;
-}
-
-.keyboard-section__intro {
-  max-width: 32rem;
-  margin: 0;
-  color: var(--t-muted);
-  font-size: 0.82rem;
-  line-height: 1.5;
-}
-
-.keyboard-section__summary {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.4rem;
-}
-
-.keyboard-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.3rem 0.65rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.03em;
-  color: var(--t-secondary);
-}
-
-.keyboard-pill--current {
-  background: color-mix(in srgb, var(--error) 14%, transparent);
-  color: var(--error);
-}
-
-.keyboard-section__footer {
-  margin-top: 0.85rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem 1rem;
-  flex-wrap: wrap;
-}
-
-.keyboard-section__count {
-  color: var(--t-secondary);
-  font-size: 0.75rem;
-  font-family: var(--font-mono);
-}
-
-.keyboard-section__note {
-  color: var(--t-muted);
-  font-size: 0.75rem;
-}
-
 /* ─── Keyboard ─── */
 
 .kbd {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  align-items: center;
+  gap: 3rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 4rem 0;
 }
 
 .kbd__board {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.85rem;
-  border-radius: 1rem;
-  background: linear-gradient(180deg, #161616, #111111);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  align-items: center;
+  gap: 1rem;
 }
 
 .kbd__row {
   display: flex;
-  gap: 0.35rem;
+  gap: 1rem;
 }
 
 /* ─── Individual Key ─── */
 
 .kbd__key {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.15rem;
-  width: 3.2rem;
-  height: 3.2rem;
-  border-radius: 0.55rem;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  width: 5.4rem;
+  height: 5.4rem;
+  border-radius: 1.25rem;
+  border: 2px solid rgba(255, 255, 255, 0.08);
   background: #1c1c1c;
   font-family: var(--font-mono);
-  cursor: default;
+  cursor: pointer;
+  user-select: none;
   transition:
-    border-color 120ms ease,
-    background 120ms ease,
-    transform 120ms ease,
-    box-shadow 120ms ease;
+    border-color 150ms ease,
+    background 150ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease;
 }
 
 .kbd__key:hover {
-  transform: translateY(-1px);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.kbd__key:active {
+  transform: translateY(0);
 }
 
 /* Letter */
 .kbd__letter {
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1.8rem;
+  font-weight: 800;
   line-height: 1;
   color: var(--t-muted);
-  transition: color 120ms ease;
+  transition: color 150ms ease;
 }
 
-/* WPM number */
-.kbd__wpm {
-  font-size: 0.55rem;
+/* Lock toggle icon */
+.kbd__lock-toggle {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 1rem;
   line-height: 1;
-  color: var(--t-dim);
-  letter-spacing: 0.02em;
-  transition: color 120ms ease;
+  opacity: 0.15;
+  transition: opacity 150ms ease, transform 150ms ease;
+  z-index: 2;
+}
+
+/* Show lock icon clearly for locked keys */
+.kbd__lock-toggle--locked {
+  opacity: 1 !important;
+  transform: scale(1.1);
+}
+
+.kbd__lock-toggle--unlocked {
+  opacity: 0.2;
+}
+
+.kbd__key:hover .kbd__lock-toggle--unlocked {
+  opacity: 0.6;
+}
+
+.kbd__lock-toggle:hover {
+  opacity: 1 !important;
+  transform: scale(1.2);
 }
 
 /* ─── Key States ─── */
 
-/* Locked: dim and recessed */
+/* Locked */
 .kbd__key--locked {
   background: #151515;
-  border-color: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
 .kbd__key--locked .kbd__letter {
-  color: var(--t-dim);
+  color: rgba(255, 255, 255, 0.45);
 }
 
-.kbd__key--locked .kbd__wpm {
-  color: rgba(255, 255, 255, 0.08);
-}
-
-/* Unlocked: subtle teal tint */
+/* Unlocked: Subtle teal tint */
 .kbd__key--unlocked {
-  border-color: color-mix(in srgb, var(--accent) 22%, transparent);
-  background: color-mix(in srgb, var(--accent) 6%, #1c1c1c);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, #1c1c1c);
 }
 
 .kbd__key--unlocked .kbd__letter {
-  color: color-mix(in srgb, var(--accent) 70%, #fff);
+  color: color-mix(in srgb, var(--accent) 95%, #fff);
 }
 
-.kbd__key--unlocked .kbd__wpm {
-  color: color-mix(in srgb, var(--accent) 40%, var(--t-muted));
-}
-
-/* Mastered: solid teal presence */
+/* Mastered: Solid teal glow */
 .kbd__key--mastered {
-  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
-  background: color-mix(in srgb, var(--accent) 10%, #1c1c1c);
-  box-shadow: 0 0 12px rgba(0, 212, 170, 0.06);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, #1c1c1c);
+  box-shadow: 0 0 20px rgba(0, 212, 170, 0.2);
 }
 
 .kbd__key--mastered .kbd__letter {
   color: var(--accent);
 }
 
-.kbd__key--mastered .kbd__wpm {
-  color: color-mix(in srgb, var(--accent) 55%, var(--t-muted));
-}
-
-/* Active / Working: warm rose highlight */
+/* Active / Target */
 .kbd__key--active {
-  border-color: color-mix(in srgb, var(--error) 50%, transparent);
-  background: color-mix(in srgb, var(--error) 12%, #1c1c1c);
-  box-shadow: 0 0 16px rgba(255, 107, 157, 0.1);
-  transform: translateY(-1px);
-}
-
-.kbd__key--active:hover {
-  transform: translateY(-2px);
+  border-color: var(--error);
+  box-shadow: 0 0 30px rgba(255, 107, 157, 0.25);
 }
 
 .kbd__key--active .kbd__letter {
   color: var(--error);
-}
-
-.kbd__key--active .kbd__wpm {
-  color: color-mix(in srgb, var(--error) 50%, var(--t-muted));
-}
-
-/* Next unlock: dashed outline hint */
-.kbd__key--next {
-  border-style: dashed;
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  background: #181818;
-}
-
-.kbd__key--next .kbd__letter {
-  color: color-mix(in srgb, var(--accent) 45%, var(--t-muted));
-}
-
-.kbd__key--next .kbd__wpm {
-  color: rgba(255, 255, 255, 0.1);
 }
 
 /* ─── Legend ─── */
@@ -914,92 +833,78 @@ button.unlock-target-chip:focus-visible {
 .kbd__legend {
   display: flex;
   justify-content: center;
-  gap: 1.25rem;
+  align-items: center;
+  gap: 3rem;
+  margin-top: 2rem;
 }
 
 .kbd__legend-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.8rem;
   color: var(--t-muted);
-  font-size: 0.65rem;
-  letter-spacing: 0.06em;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
+.kbd__legend-item--hint {
+  color: var(--t-dim);
+  text-transform: none;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
 .kbd__dot {
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.7rem;
+  height: 0.7rem;
   border-radius: 50%;
 }
 
-.kbd__dot--unlocked {
-  background: var(--accent);
-  opacity: 0.6;
-}
-
-.kbd__dot--active {
-  background: var(--error);
-  opacity: 0.7;
-}
-
-.kbd__dot--next {
-  background: transparent;
-  border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
-}
+.kbd__dot--unlocked { background: var(--accent); }
+.kbd__dot--active { background: var(--error); }
+.kbd__dot--locked { background: rgba(255, 255, 255, 0.45); }
 
 /* ─── Responsive ─── */
 
-@media (max-width: 1000px) {
-  .keyboard-section {
-    width: 100%;
-    padding: 1rem;
-  }
-
-  .kbd__board {
-    padding: 0.55rem;
-  }
-
-  .kbd__row {
-    gap: 0.25rem;
-  }
-
+@media (max-width: 1200px) {
   .kbd__key {
-    width: 2.6rem;
-    height: 2.6rem;
-    border-radius: 0.4rem;
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 1rem;
   }
 
   .kbd__letter {
-    font-size: 0.82rem;
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 800px) {
+  .kbd__key {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 0.85rem;
   }
 
-  .kbd__wpm {
-    font-size: 0.48rem;
+  .kbd__letter {
+    font-size: 1.2rem;
   }
 }
 
 @media (max-width: 600px) {
   .kbd__key {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.35rem;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.7rem;
   }
 
   .kbd__letter {
-    font-size: 0.7rem;
+    font-size: 1.1rem;
   }
 
-  .kbd__wpm {
+  .kbd__legend-item--hint {
     display: none;
-  }
-
-  .kbd__row {
-    gap: 0.2rem;
-  }
-
-  .kbd__board {
-    padding: 0.4rem;
   }
 }
 

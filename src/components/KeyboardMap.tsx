@@ -1,49 +1,72 @@
 import { KEYBOARD_ROWS, MASTERY_ACCURACY_TARGET, MASTERY_WPM_TARGET } from '../lib/constants'
 import { getLetterAccuracy, getLetterWpm } from '../lib/progression'
 import { useTypingStore } from '../lib/store'
+import type { Letter } from '../lib/types'
 
 export function KeyboardMap() {
   const progress = useTypingStore((state) => state.progress)
+  const toggleLetterLock = useTypingStore((state) => state.toggleLetterLock)
   const lessonTarget = useTypingStore((state) => state.lesson.targetLetters[0] ?? state.progress.nextUnlockLetter)
   const unlockedSet = new Set(progress.unlockedLetters)
   const rowOffsets = [0, 1, 3]
 
+  function handleKeyClick(letter: Letter) {
+    toggleLetterLock(letter)
+  }
+
+  function handleToggleLock(event: React.MouseEvent, letter: Letter) {
+    event.stopPropagation()
+    toggleLetterLock(letter)
+  }
+
   return (
-    <div className="kbd" aria-label="Adaptive keyboard progress">
+    <div className="kbd" aria-label="Large keyboard map">
       <div className="kbd__board">
         {KEYBOARD_ROWS.map((row, rowIndex) => (
-          <div className="kbd__row" key={row.join('')} style={{ paddingLeft: `${rowOffsets[rowIndex] * 1.6}rem` }}>
+          <div className="kbd__row" key={row.join('')} style={{ paddingLeft: `${rowOffsets[rowIndex] * 2.2}rem` }}>
             {row.map((letter) => {
               const stats = progress.letterStats[letter]
               const accuracy = getLetterAccuracy(stats)
               const wpm = getLetterWpm(stats)
-              const bestWpm = Math.round(stats.fastestWpm)
               const unlocked = unlockedSet.has(letter)
               const isCurrentTarget = lessonTarget === letter
-              const isNextUnlock = progress.nextUnlockLetter === letter
               const isMastered = stats.attempts > 0 && accuracy >= MASTERY_ACCURACY_TARGET && wpm >= MASTERY_WPM_TARGET
+              
               const classes = ['kbd__key']
-
               if (isCurrentTarget) classes.push('kbd__key--active')
-              else if (!unlocked && isNextUnlock) classes.push('kbd__key--next')
-              else if (!unlocked) classes.push('kbd__key--locked')
-              else if (isMastered) classes.push('kbd__key--mastered')
-              else classes.push('kbd__key--unlocked')
-
-              const status = isCurrentTarget
-                ? 'working'
-                : !unlocked
-                  ? isNextUnlock ? 'next' : 'locked'
-                  : isMastered ? 'mastered' : 'unlocked'
+              
+              if (!unlocked) {
+                classes.push('kbd__key--locked')
+              } else if (isMastered) {
+                classes.push('kbd__key--mastered')
+              } else {
+                classes.push('kbd__key--unlocked')
+              }
 
               return (
                 <div
-                  aria-label={`${letter.toUpperCase()} key, ${status}, best ${bestWpm > 0 ? `${bestWpm} wpm` : 'not recorded yet'}`}
+                  role="button"
+                  tabIndex={0}
                   className={classes.join(' ')}
                   key={letter}
+                  onClick={() => handleKeyClick(letter)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleKeyClick(letter)
+                    }
+                  }}
                 >
                   <span className="kbd__letter">{letter.toUpperCase()}</span>
-                  <span className="kbd__wpm">{bestWpm > 0 ? bestWpm : '\u2014'}</span>
+                  
+                  {/* Lock icon - always visible on locked keys, subtle on unlocked ones */}
+                  <span
+                    className={`kbd__lock-toggle ${unlocked ? 'kbd__lock-toggle--unlocked' : 'kbd__lock-toggle--locked'}`}
+                    onClick={(e) => handleToggleLock(e, letter)}
+                    title={unlocked ? 'Lock this letter' : 'Unlock this letter'}
+                  >
+                    {unlocked ? '🔓' : '🔒'}
+                  </span>
                 </div>
               )
             })}
@@ -58,11 +81,14 @@ export function KeyboardMap() {
         </span>
         <span className="kbd__legend-item">
           <span className="kbd__dot kbd__dot--active" />
-          Current
+          Target
         </span>
         <span className="kbd__legend-item">
-          <span className="kbd__dot kbd__dot--next" />
-          Next
+          <span className="kbd__dot kbd__dot--locked" />
+          Locked
+        </span>
+        <span className="kbd__legend-item kbd__legend-item--hint">
+          Click key to toggle lock/unlock
         </span>
       </div>
     </div>

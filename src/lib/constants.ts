@@ -42,3 +42,4 @@ export const LEFT_HAND_LETTERS = new Set<Letter>(['q', 'w', 'e', 'r', 't', 'a', 
 export const ALL_LETTER_SET = new Set<Letter>([...UNLOCK_SEQUENCE.initial, ...UNLOCK_SEQUENCE.order])
 
 export const DEFAULT_FOCUS_LETTER: Letter = 't'
+

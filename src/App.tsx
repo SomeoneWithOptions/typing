@@ -571,63 +571,35 @@ export default function App() {
           </div>
 
           <section className="secondary-info">
-            <div className="sessions-group">
-              <h3 className="info-section-title">Recent Sessions</h3>
-              <div className="sessions-list">
-                {recentSessions.length === 0 ? (
-                  <div className="session-row--empty">Finish a lesson to see your history.</div>
-                ) : (
-                  recentSessions.map((session) => (
-                    <div className="session-row" key={session.id}>
-                      <span className="session-row__cell session-row__mode">{session.mode}</span>
-                      <span className="session-row__cell session-row__detail">{getSessionDetail(session)}</span>
-                      <span className="session-row__cell session-row__stat">{formatWpm(session.wpm)} wpm</span>
-                      <span className="session-row__cell session-row__stat">{formatPercent(session.accuracy)}</span>
-                      <span className="session-row__cell session-row__time">
-                        {new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                  ))
-                )}
+            {isAdaptiveMode ? null : (
+              <div className="session-history">
+                <div className="session-history__header">
+                  <h3 className="info-section-title">Session History</h3>
+                  <button className="btn btn--minimal" onClick={resetProgress}>
+                    Reset All
+                  </button>
+                </div>
+                <div className="session-history__list">
+                  {progress.sessions.length === 0 ? (
+                    <div className="empty-state">No sessions recorded yet.</div>
+                  ) : (
+                    recentSessions.map((session) => (
+                      <div className="session-row" key={session.id}>
+                        <span className="session-row__cell session-row__mode">{session.mode}</span>
+                        <span className="session-row__cell session-row__detail">{getSessionDetail(session)}</span>
+                        <span className="session-row__cell session-row__stat">{formatWpm(session.wpm)} wpm</span>
+                        <span className="session-row__cell session-row__stat">{formatPercent(session.accuracy)}</span>
+                        <span className="session-row__cell session-row__time">
+                          {new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            {isAdaptiveMode ? (
-              <aside className="keyboard-section">
-                <div className="keyboard-section__header">
-                  <div>
-                    <h3 className="info-section-title">Adaptive Keyboard</h3>
-                    <p className="keyboard-section__intro">
-                      Each key shows your best speed. Unlocked letters are green, the active target is highlighted in red.
-                    </p>
-                  </div>
-                  <div className="keyboard-section__summary">
-                    {currentLetter ? (
-                      <span className="keyboard-pill keyboard-pill--current">
-                        working on {currentLetter.toUpperCase()}
-                      </span>
-                    ) : null}
-                    {progress.nextUnlockLetter ? (
-                      <span className="keyboard-pill">
-                        next {progress.nextUnlockLetter.toUpperCase()}
-                      </span>
-                    ) : null}
-                    <span className="keyboard-pill">
-                      goal {unlockTargets.wpm} wpm
-                    </span>
-                  </div>
-                </div>
-                <KeyboardMap />
-                <div className="keyboard-section__footer">
-                  <span className="letter-count keyboard-section__count">
-                    {`${progress.unlockedLetters.length}/26 unlocked`}
-                  </span>
-                  <span className="keyboard-section__note">
-                    WPM shown per key
-                  </span>
-                </div>
-              </aside>
-            ) : null}
+            {isAdaptiveMode ? <KeyboardMap /> : null}
           </section>
         </main>
       </div>

@@ -5,6 +5,7 @@ import { generateFreeLesson, generateLesson } from './lesson-engine'
 import {
   clampUnlockTarget,
   createInitialProgressState,
+  getRemainingUnlocks,
   getUnlockStatus,
   getWeakLetters,
   resetLetterProgress,
@@ -216,6 +217,7 @@ export interface TypingStoreActions {
   setUnlockTarget: (metric: UnlockMetric, value: number) => void
   queueFreshLesson: () => Promise<void>
   resetCurrentLetter: () => void
+  toggleLetterLock: (letter: Letter) => void
   handleTypedKey: (key: string) => void
   handleBackspace: () => void
   completeLesson: (nextAttempts: SessionKeyAttempt[], finishedAt: number, nextMetricAttempts?: SessionKeyAttempt[]) => void
@@ -375,6 +377,40 @@ export const useTypingStore = create<TypingStore>((set) => ({
       return {
         progress: nextProgress,
         statusMessage: `${currentLetter.toUpperCase()} reset.`,
+        ...createLessonState(nextProgress),
+      }
+    })
+  },
+  toggleLetterLock(letter) {
+    set((state) => {
+      const isUnlocked = state.progress.unlockedLetters.includes(letter)
+      const now = new Date().toISOString()
+      let nextUnlockedLetters: Letter[]
+
+      if (isUnlocked) {
+        nextUnlockedLetters = state.progress.unlockedLetters.filter((l) => l !== letter)
+      } else {
+        nextUnlockedLetters = [...state.progress.unlockedLetters, letter]
+      }
+
+      const nextUnlockLetter = getRemainingUnlocks(nextUnlockedLetters)[0] ?? null
+
+      const nextProgress: ProgressState = {
+        ...state.progress,
+        unlockedLetters: nextUnlockedLetters,
+        nextUnlockLetter,
+        letterStats: {
+          ...state.progress.letterStats,
+          [letter]: {
+            ...state.progress.letterStats[letter],
+            unlockedAt: isUnlocked ? null : (state.progress.letterStats[letter].unlockedAt ?? now),
+          },
+        },
+      }
+
+      return {
+        progress: nextProgress,
+        statusMessage: `${letter.toUpperCase()} ${isUnlocked ? 'locked' : 'unlocked'}.`,
         ...createLessonState(nextProgress),
       }
     })
