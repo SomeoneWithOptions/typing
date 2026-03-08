@@ -4,12 +4,17 @@ import { useShallow } from 'zustand/shallow'
 import './App.css'
 import { KeyboardMap } from './components/KeyboardMap'
 import {
+  formatFreeCorpusTier,
+  FREE_CORPUS_TIERS,
+  UNLOCK_TARGET_LIMITS,
+} from './lib/constants'
+import {
   ALPHABET,
+  type FreeCorpusTier,
   type UnlockMetric,
   type GeneratedLesson,
   type Letter,
 } from './lib/types'
-import { UNLOCK_TARGET_LIMITS } from './lib/constants'
 import {
   getUnlockStatus,
 } from './lib/progression'
@@ -137,6 +142,7 @@ export default function App() {
     hydrate,
     setMode,
     setFocusLetter,
+    setFreeTier,
     setUnlockTarget,
     queueFreshLesson,
     resetCurrentLetter,
@@ -158,6 +164,7 @@ export default function App() {
       hydrate: state.hydrate,
       setMode: state.setMode,
       setFocusLetter: state.setFocusLetter,
+      setFreeTier: state.setFreeTier,
       setUnlockTarget: state.setUnlockTarget,
       queueFreshLesson: state.queueFreshLesson,
       resetCurrentLetter: state.resetCurrentLetter,
@@ -183,9 +190,11 @@ export default function App() {
   const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
   const recentSessions = progress.sessions.slice(0, 5)
   const isFocusMode = progress.settings.mode === 'focus'
+  const isFreeMode = progress.settings.mode === 'free'
   const unlockTargets = progress.settings.unlockTargets
+  const freeTierLabel = formatFreeCorpusTier(progress.settings.freeTier)
 
-  const currentLetter = lesson.targetLetters[0] ?? (isFocusMode ? progress.settings.focusLetter : unlockStatus.bottleneckLetter)
+  const currentLetter = isFreeMode ? null : lesson.targetLetters[0] ?? (isFocusMode ? progress.settings.focusLetter : unlockStatus.bottleneckLetter)
   const unlockMetricCards: Array<{
     metric: UnlockMetric
     label: string
@@ -346,6 +355,14 @@ export default function App() {
                 >
                   focus
                 </button>
+                <button
+                  aria-pressed={progress.settings.mode === 'free'}
+                  className={progress.settings.mode === 'free' ? 'btn btn--minimal btn--active' : 'btn btn--minimal'}
+                  onClick={() => runUiTransition(() => setMode('free'))}
+                  type="button"
+                >
+                  free
+                </button>
                 {progress.settings.mode === 'focus' ? (
                   <label className="target-select" htmlFor="focus-letter">
                     <span>key</span>
@@ -363,15 +380,34 @@ export default function App() {
                     </select>
                   </label>
                 ) : null}
+                {progress.settings.mode === 'free' ? (
+                  <label className="target-select" htmlFor="free-tier">
+                    <span>english</span>
+                    <select
+                      id="free-tier"
+                      value={progress.settings.freeTier}
+                      onChange={(e) => {
+                        const nextTier = Number(e.target.value) as FreeCorpusTier
+                        runUiTransition(() => setFreeTier(nextTier))
+                      }}
+                    >
+                      {FREE_CORPUS_TIERS.map((tier) => (
+                        <option key={tier} value={tier}>{formatFreeCorpusTier(tier)}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
               </div>
 
               <div className="control-row control-row--actions">
                 <button className="btn btn--minimal" onClick={() => runUiTransition(() => queueFreshLesson())} type="button">
                   new lesson
                 </button>
-                <button className="btn btn--minimal" onClick={handleResetCurrentLetter} type="button">
-                  reset letter
-                </button>
+                {!isFreeMode ? (
+                  <button className="btn btn--minimal" onClick={handleResetCurrentLetter} type="button">
+                    reset letter
+                  </button>
+                ) : null}
                 <button className="btn btn--minimal btn--danger" onClick={() => void handleResetProgress()} type="button">
                   reset all
                 </button>
@@ -389,7 +425,7 @@ export default function App() {
               </div>
               <div className="metric-item">
                 <span>key</span>
-                <strong>{currentLetter?.toUpperCase() ?? '—'}</strong>
+                <strong>{isFreeMode ? 'A-Z' : currentLetter?.toUpperCase() ?? '—'}</strong>
               </div>
             </div>
 
@@ -414,86 +450,103 @@ export default function App() {
               )}
             </div>
             <div className="unlock-progress-container">
-              <h3 className="unlock-progress-strip__title">
-                <span className={isFocusMode ? 'unlock-progress-strip__title-text unlock-progress-strip__title-text--hidden' : 'unlock-progress-strip__title-text'}>
-                  unlock progress
-                </span>
-                <span className={isFocusMode ? 'unlock-progress-strip__title-text' : 'unlock-progress-strip__title-text unlock-progress-strip__title-text--hidden'}>
-                  mastery progress
-                </span>
-              </h3>
-              <div className="unlock-progress-strip">
-                <div className="unlock-progress-strip__core">
-                  {unlockMetricCards.map(({ metric, label, currentValue, targetValue, statusClassName }) => (
-                    editingMetric === metric ? (
-                      <div className="metric-item unlock-target-chip unlock-target-chip--editing" key={metric}>
-                        <span>{label}</span>
-                        <div className="unlock-target-editor">
-                          <strong className={statusClassName}>
-                            {currentValue}/
-                          </strong>
-                          <input
-                            aria-label={`Set ${label} unlock target`}
-                            className={`unlock-target-editor__input ${unlockTargetError ? 'unlock-target-editor__input--error' : ''}`}
-                            inputMode="numeric"
-                            max={UNLOCK_TARGET_LIMITS[metric].max}
-                            min={UNLOCK_TARGET_LIMITS[metric].min}
-                            onBlur={() => { void commitUnlockTarget(metric) }}
-                            onChange={(event) => {
-                              setUnlockDraft(event.target.value)
-                              if (unlockTargetError) {
-                                setUnlockTargetError(null)
-                              }
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.preventDefault()
-                                commitUnlockTarget(metric)
-                              }
-                              if (event.key === 'Escape') {
-                                event.preventDefault()
-                                cancelUnlockTargetEdit()
-                              }
-                            }}
-                            ref={unlockInputRef}
-                            step={UNLOCK_TARGET_LIMITS[metric].step}
-                            type="number"
-                            value={unlockDraft}
-                          />
-                          {metric === 'accuracy' ? <span className="unlock-target-editor__suffix">%</span> : null}
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        aria-label={`Edit ${label} unlock target`}
-                        className="metric-item unlock-target-chip"
-                        key={metric}
-                        onClick={() => beginUnlockTargetEdit(metric)}
-                        type="button"
-                      >
-                        <span>{label}</span>
-                        <strong className={statusClassName}>
-                          {currentValue}/{targetValue}
-                        </strong>
-                      </button>
-                    )
-                  ))}
-                </div>
-                {!isFocusMode && unlockStatus.nextLetter ? (
-                  <div className="metric-item metric-item--next-letter">
-                    <span>next letter</span>
-                    <strong>{unlockStatus.nextLetter.toUpperCase()}</strong>
+              {isFreeMode ? (
+                <>
+                  <h3 className="unlock-progress-strip__title">
+                    <span className="unlock-progress-strip__title-text">free practice</span>
+                  </h3>
+                  <div className="free-mode-panel">
+                    <div className="metric-item">
+                      <span>english</span>
+                      <strong>{freeTierLabel}</strong>
+                    </div>
+                    <p className="free-mode-panel__copy">Free mode uses all letters and does not change unlock progress.</p>
                   </div>
-                ) : null}
-              </div>
-              {editingMetric ? (
-                <div
-                  aria-live="polite"
-                  className={unlockTargetError ? 'unlock-progress-strip__hint unlock-progress-strip__hint--error' : 'unlock-progress-strip__hint'}
-                >
-                  {unlockTargetError ?? getUnlockTargetHelper(editingMetric)}
-                </div>
-              ) : null}
+                </>
+              ) : (
+                <>
+                  <h3 className="unlock-progress-strip__title">
+                    <span className={isFocusMode ? 'unlock-progress-strip__title-text unlock-progress-strip__title-text--hidden' : 'unlock-progress-strip__title-text'}>
+                      unlock progress
+                    </span>
+                    <span className={isFocusMode ? 'unlock-progress-strip__title-text' : 'unlock-progress-strip__title-text unlock-progress-strip__title-text--hidden'}>
+                      mastery progress
+                    </span>
+                  </h3>
+                  <div className="unlock-progress-strip">
+                    <div className="unlock-progress-strip__core">
+                      {unlockMetricCards.map(({ metric, label, currentValue, targetValue, statusClassName }) => (
+                        editingMetric === metric ? (
+                          <div className="metric-item unlock-target-chip unlock-target-chip--editing" key={metric}>
+                            <span>{label}</span>
+                            <div className="unlock-target-editor">
+                              <strong className={statusClassName}>
+                                {currentValue}/
+                              </strong>
+                              <input
+                                aria-label={`Set ${label} unlock target`}
+                                className={`unlock-target-editor__input ${unlockTargetError ? 'unlock-target-editor__input--error' : ''}`}
+                                inputMode="numeric"
+                                max={UNLOCK_TARGET_LIMITS[metric].max}
+                                min={UNLOCK_TARGET_LIMITS[metric].min}
+                                onBlur={() => { void commitUnlockTarget(metric) }}
+                                onChange={(event) => {
+                                  setUnlockDraft(event.target.value)
+                                  if (unlockTargetError) {
+                                    setUnlockTargetError(null)
+                                  }
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') {
+                                    event.preventDefault()
+                                    commitUnlockTarget(metric)
+                                  }
+                                  if (event.key === 'Escape') {
+                                    event.preventDefault()
+                                    cancelUnlockTargetEdit()
+                                  }
+                                }}
+                                ref={unlockInputRef}
+                                step={UNLOCK_TARGET_LIMITS[metric].step}
+                                type="number"
+                                value={unlockDraft}
+                              />
+                              {metric === 'accuracy' ? <span className="unlock-target-editor__suffix">%</span> : null}
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            aria-label={`Edit ${label} unlock target`}
+                            className="metric-item unlock-target-chip"
+                            key={metric}
+                            onClick={() => beginUnlockTargetEdit(metric)}
+                            type="button"
+                          >
+                            <span>{label}</span>
+                            <strong className={statusClassName}>
+                              {currentValue}/{targetValue}
+                            </strong>
+                          </button>
+                        )
+                      ))}
+                    </div>
+                    {!isFocusMode && unlockStatus.nextLetter ? (
+                      <div className="metric-item metric-item--next-letter">
+                        <span>next letter</span>
+                        <strong>{unlockStatus.nextLetter.toUpperCase()}</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                  {editingMetric ? (
+                    <div
+                      aria-live="polite"
+                      className={unlockTargetError ? 'unlock-progress-strip__hint unlock-progress-strip__hint--error' : 'unlock-progress-strip__hint'}
+                    >
+                      {unlockTargetError ?? getUnlockTargetHelper(editingMetric)}
+                    </div>
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
 
@@ -506,7 +559,13 @@ export default function App() {
                 ) : (
                   recentSessions.map((session) => (
                     <div className="session-row" key={session.id}>
-                      <span>{session.mode === 'focus' && session.focusLetter ? `focus ${session.focusLetter.toUpperCase()}` : 'adaptive'}</span>
+                      <span>
+                        {session.mode === 'focus' && session.focusLetter
+                          ? `focus ${session.focusLetter.toUpperCase()}`
+                          : session.mode === 'free' && session.freeTier
+                            ? `free ${formatFreeCorpusTier(session.freeTier)}`
+                            : 'adaptive'}
+                      </span>
                       <span>{formatWpm(session.wpm)} wpm</span>
                       <span>{formatPercent(session.accuracy)}</span>
                       <span>{new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -521,7 +580,7 @@ export default function App() {
               <KeyboardMap />
               <div style={{ marginTop: '2rem' }}>
                 <span className="letter-count" style={{ color: 'var(--t-muted)', fontSize: '0.8rem' }}>
-                  {progress.unlockedLetters.length}/26 letters unlocked
+                  {isFreeMode ? '26/26 letters available in free mode' : `${progress.unlockedLetters.length}/26 letters unlocked`}
                 </span>
               </div>
             </aside>

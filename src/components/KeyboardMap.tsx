@@ -4,8 +4,9 @@ import { useTypingStore } from '../lib/store'
 
 export function KeyboardMap() {
   const progress = useTypingStore((state) => state.progress)
+  const mode = useTypingStore((state) => state.progress.settings.mode)
   const weakLetters = getWeakLetters(progress, 3)
-  const unlockedSet = new Set(progress.unlockedLetters)
+  const unlockedSet = new Set(mode === 'free' ? KEYBOARD_ROWS.flat() : progress.unlockedLetters)
 
   return (
     <div className="keyboard-map" aria-label="Keyboard progress">
@@ -20,15 +21,15 @@ export function KeyboardMap() {
 
             if (locked) {
               classes.push('keycap--locked')
-            } else if (weakLetters.includes(letter)) {
+            } else if (stats.attempts > 0 && weakLetters.includes(letter)) {
               classes.push('keycap--weak')
-            } else if (accuracy >= MASTERY_ACCURACY_TARGET && wpm >= MASTERY_WPM_TARGET) {
+            } else if (stats.attempts > 0 && accuracy >= MASTERY_ACCURACY_TARGET && wpm >= MASTERY_WPM_TARGET) {
               classes.push('keycap--mastered')
             } else {
               classes.push('keycap--active')
             }
 
-            if (progress.nextUnlockLetter === letter) {
+            if (mode !== 'free' && progress.nextUnlockLetter === letter) {
               classes.push('keycap--next')
             }
 

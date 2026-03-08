@@ -8,21 +8,18 @@ import {
 import { createInitialProgressState } from './progression'
 import type { GeneratedLesson, SessionKeyAttempt } from './types'
 
-const loadMock = vi.fn()
-const resetMock = vi.fn()
-
-vi.mock('./storage', () => ({
-  indexedDbStorage: {
-    load: loadMock,
-    save: vi.fn(),
-    reset: resetMock,
-  },
-}))
-
 async function loadStoreModule() {
-  const storeModule = await import('./store')
+  vi.resetModules()
+  const [storeModule, storageModule] = await Promise.all([
+    import('./store'),
+    import('./storage'),
+  ])
+  await storageModule.indexedDbStorage.reset()
   storeModule.useTypingStore.setState(storeModule.createInitialTypingStoreState())
-  return storeModule
+  return {
+    ...storeModule,
+    indexedDbStorage: storageModule.indexedDbStorage,
+  }
 }
 
 beforeEach(() => {
@@ -35,14 +32,13 @@ describe('typing store', () => {
     const savedProgress = createInitialProgressState()
     savedProgress.settings.mode = 'focus'
     savedProgress.settings.focusLetter = 'q'
-    loadMock.mockResolvedValue(savedProgress)
 
-    const { useTypingStore } = await loadStoreModule()
+    const { indexedDbStorage, useTypingStore } = await loadStoreModule()
+    await indexedDbStorage.save(savedProgress)
     await useTypingStore.getState().hydrate()
 
     const state = useTypingStore.getState()
 
-    expect(loadMock).toHaveBeenCalledTimes(1)
     expect(state.isLoaded).toBe(true)
     expect(state.progress.settings.mode).toBe('focus')
     expect(state.progress.settings.focusLetter).toBe('q')
@@ -55,7 +51,7 @@ describe('typing store', () => {
   it('regenerates lessons and status when mode or focus changes', async () => {
     const { useTypingStore } = await loadStoreModule()
 
-    useTypingStore.getState().setMode('focus')
+    await useTypingStore.getState().setMode('focus')
     let state = useTypingStore.getState()
     expect(state.progress.settings.mode).toBe('focus')
     expect(state.statusMessage).toBe('Focus drill: T')
@@ -68,6 +64,28 @@ describe('typing store', () => {
     expect(state.statusMessage).toBe('Focus drill: Q')
     expect(state.lesson.mode).toBe('focus')
     expect(state.lesson.focusLetter).toBe('q')
+    expect(state.currentIndex).toBe(0)
+    expect(state.attempts).toEqual([])
+  })
+
+  it('regenerates lessons and status when switching to free mode or changing tiers', async () => {
+    const { useTypingStore } = await loadStoreModule()
+
+    await useTypingStore.getState().setMode('free')
+    let state = useTypingStore.getState()
+    expect(state.progress.settings.mode).toBe('free')
+    expect(state.progress.settings.freeTier).toBe(200)
+    expect(state.statusMessage).toBe('Free practice: English 200 ready.')
+    expect(state.lesson.mode).toBe('free')
+    expect(state.lesson.freeTier).toBe(200)
+    expect(state.lesson.targetLetters).toEqual([])
+
+    await useTypingStore.getState().setFreeTier(1000)
+    state = useTypingStore.getState()
+    expect(state.progress.settings.freeTier).toBe(1000)
+    expect(state.statusMessage).toBe('Free practice: English 1k ready.')
+    expect(state.lesson.mode).toBe('free')
+    expect(state.lesson.freeTier).toBe(1000)
     expect(state.currentIndex).toBe(0)
     expect(state.attempts).toEqual([])
   })
@@ -96,6 +114,7 @@ describe('typing store', () => {
             id: 'session-1',
             mode: 'adaptive',
             focusLetter: null,
+            freeTier: null,
             startedAt: '2026-03-07T00:00:00.000Z',
             endedAt: '2026-03-07T00:01:00.000Z',
             words: ['learn'],
@@ -175,6 +194,7 @@ describe('typing store', () => {
       id: 'repeat-mistake-test',
       mode: 'adaptive',
       focusLetter: null,
+      freeTier: null,
       words: ['he'],
       text: 'he',
       targetLetters: ['h', 'e'],
@@ -214,6 +234,7 @@ describe('typing store', () => {
       id: 'space-mistake-test',
       mode: 'adaptive',
       focusLetter: null,
+      freeTier: null,
       words: ['a', 'b'],
       text: 'a b',
       targetLetters: ['a', 'b'],
@@ -336,6 +357,7 @@ describe('typing store', () => {
       id: 'unlock-test',
       mode: 'adaptive',
       focusLetter: null,
+      freeTier: null,
       words: ['e'],
       text: 'e',
       targetLetters: ['e'],
@@ -391,6 +413,7 @@ describe('typing store', () => {
       id: 'accuracy-test',
       mode: 'adaptive',
       focusLetter: null,
+      freeTier: null,
       words: ['e'],
       text: 'e',
       targetLetters: ['e'],
@@ -434,16 +457,87 @@ describe('typing store', () => {
     expect(state.statusMessage).toBe('Lesson complete. New set ready.')
   })
 
-  it('resets progress back to the starter state after clearing storage', async () => {
-    resetMock.mockResolvedValue(undefined)
-
+  it('records free sessions without changing adaptive progression', async () => {
     const { useTypingStore } = await loadStoreModule()
+    const progress = createInitialProgressState()
+    const lesson: GeneratedLesson = {
+      id: 'free-mode-test',
+      mode: 'free',
+      focusLetter: null,
+      freeTier: 1000,
+      words: ['the'],
+      text: 'the',
+      targetLetters: [],
+    }
+    const attempts: SessionKeyAttempt[] = [
+      {
+        expected: 't',
+        actual: 't',
+        correct: true,
+        deltaMs: 180,
+        index: 0,
+        timestamp: 1000,
+      },
+      {
+        expected: 'h',
+        actual: 'h',
+        correct: true,
+        deltaMs: 180,
+        index: 1,
+        timestamp: 1200,
+      },
+      {
+        expected: 'e',
+        actual: 'e',
+        correct: true,
+        deltaMs: 180,
+        index: 2,
+        timestamp: 1400,
+      },
+    ]
+
+    useTypingStore.setState({
+      progress: {
+        ...progress,
+        settings: {
+          ...progress.settings,
+          mode: 'free',
+          freeTier: 1000,
+        },
+      },
+      lesson,
+      lessonStartedAt: 1000,
+      currentIndex: 0,
+      attempts: [],
+      metricAttempts: [],
+      isLoaded: true,
+    })
+
+    useTypingStore.getState().completeLesson(attempts, 1600)
+    const state = useTypingStore.getState()
+
+    expect(state.progress.unlockedLetters).toEqual(progress.unlockedLetters)
+    expect(state.progress.nextUnlockLetter).toBe(progress.nextUnlockLetter)
+    expect(state.progress.letterStats).toEqual(progress.letterStats)
+    expect(state.progress.sessions[0]).toMatchObject({
+      mode: 'free',
+      focusLetter: null,
+      freeTier: 1000,
+    })
+    expect(state.statusMessage).toBe('Free practice: English 1k ready.')
+    expect(state.lesson.mode).toBe('free')
+    expect(state.lesson.freeTier).toBe(1000)
+  })
+
+  it('resets progress back to the starter state after clearing storage', async () => {
+    const { indexedDbStorage, useTypingStore } = await loadStoreModule()
     useTypingStore.setState({
       progress: {
         ...createInitialProgressState(),
         settings: {
           mode: 'focus',
           focusLetter: 'q',
+          freeTier: 200,
           unlockTargets: {
             hits: 90,
             accuracy: 88,
@@ -460,7 +554,11 @@ describe('typing store', () => {
     await useTypingStore.getState().resetProgress()
     const state = useTypingStore.getState()
 
-    expect(resetMock).toHaveBeenCalledTimes(1)
+    await expect(indexedDbStorage.load()).resolves.toMatchObject({
+      settings: {
+        mode: 'adaptive',
+      },
+    })
     expect(state.progress.settings.mode).toBe('adaptive')
     expect(state.progress.settings.focusLetter).toBe('t')
     expect(state.progress.settings.unlockTargets).toEqual(DEFAULT_UNLOCK_TARGETS)
@@ -476,6 +574,7 @@ describe('typing store', () => {
       id: 'reset-letter-test',
       mode: 'adaptive',
       focusLetter: null,
+      freeTier: null,
       words: ['e'],
       text: 'e',
       targetLetters: ['e'],

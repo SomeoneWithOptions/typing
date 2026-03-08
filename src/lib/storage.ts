@@ -1,5 +1,5 @@
 import { openDB } from 'idb'
-import type { DBSchema } from 'idb'
+import type { DBSchema, IDBPDatabase } from 'idb'
 import { hydratingProgressState } from './progression'
 import type { ProgressState, StorageAdapter } from './types'
 
@@ -14,26 +14,53 @@ interface TrainerDb extends DBSchema {
   }
 }
 
-const dbPromise = openDB<TrainerDb>(DB_NAME, 1, {
-  upgrade(database) {
-    if (!database.objectStoreNames.contains(STORE_NAME)) {
-      database.createObjectStore(STORE_NAME)
-    }
-  },
-})
+let dbPromise: Promise<IDBPDatabase<TrainerDb>> | null = null
+let memoryProgress: ProgressState | null = null
+
+function hasIndexedDb() {
+  return typeof indexedDB !== 'undefined'
+}
+
+function getDbPromise(): Promise<IDBPDatabase<TrainerDb>> {
+  if (!dbPromise) {
+    dbPromise = openDB<TrainerDb>(DB_NAME, 1, {
+      upgrade(database) {
+        if (!database.objectStoreNames.contains(STORE_NAME)) {
+          database.createObjectStore(STORE_NAME)
+        }
+      },
+    })
+  }
+
+  return dbPromise
+}
 
 export const indexedDbStorage: StorageAdapter = {
   async load() {
-    const db = await dbPromise
+    if (!hasIndexedDb()) {
+      return hydratingProgressState(memoryProgress)
+    }
+
+    const db = await getDbPromise()
     const stored = await db.get(STORE_NAME, PROGRESS_KEY)
     return hydratingProgressState(stored ?? null)
   },
   async save(progress) {
-    const db = await dbPromise
+    if (!hasIndexedDb()) {
+      memoryProgress = progress
+      return
+    }
+
+    const db = await getDbPromise()
     await db.put(STORE_NAME, progress, PROGRESS_KEY)
   },
   async reset() {
-    const db = await dbPromise
+    if (!hasIndexedDb()) {
+      memoryProgress = null
+      return
+    }
+
+    const db = await getDbPromise()
     await db.delete(STORE_NAME, PROGRESS_KEY)
   },
 }

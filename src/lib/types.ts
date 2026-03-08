@@ -28,7 +28,8 @@ export const ALPHABET = [
 ] as const
 
 export type Letter = (typeof ALPHABET)[number]
-export type PracticeMode = 'adaptive' | 'focus'
+export type PracticeMode = 'adaptive' | 'focus' | 'free'
+export type FreeCorpusTier = 200 | 1000 | 5000 | 10000 | 25000 | 450000
 export type UnlockMetric = 'hits' | 'accuracy' | 'wpm'
 
 export interface UnlockTargets {
@@ -62,6 +63,7 @@ export interface SessionRecord {
   id: string
   mode: PracticeMode
   focusLetter: Letter | null
+  freeTier: FreeCorpusTier | null
   startedAt: string
   endedAt: string
   words: string[]
@@ -78,6 +80,7 @@ export interface GeneratedLesson {
   id: string
   mode: PracticeMode
   focusLetter: Letter | null
+  freeTier: FreeCorpusTier | null
   words: string[]
   text: string
   targetLetters: Letter[]
@@ -97,6 +100,7 @@ export interface ProgressState {
   settings: {
     mode: PracticeMode
     focusLetter: Letter
+    freeTier: FreeCorpusTier
     unlockTargets: UnlockTargets
   }
 }

@@ -1,6 +1,6 @@
-import type { Letter, UnlockMetric, UnlockSequence, UnlockTargets } from './types'
+import type { FreeCorpusTier, Letter, UnlockMetric, UnlockSequence, UnlockTargets } from './types'
 
-export const APP_VERSION = 2
+export const APP_VERSION = 3
 export const LESSON_WORD_COUNT = 25
 export const MAX_SESSION_HISTORY = 120
 export const UNLOCK_SAMPLE_TARGET = 40
@@ -10,6 +10,11 @@ export const DEFAULT_UNLOCK_TARGETS: UnlockTargets = {
   hits: UNLOCK_SAMPLE_TARGET,
   accuracy: UNLOCK_ACCURACY_TARGET,
   wpm: UNLOCK_WPM_TARGET,
+}
+export const FREE_CORPUS_TIERS = [200, 1000, 5000, 10000, 25000, 450000] as const satisfies readonly FreeCorpusTier[]
+export const DEFAULT_FREE_CORPUS_TIER: FreeCorpusTier = 200
+export function formatFreeCorpusTier(tier: FreeCorpusTier) {
+  return tier >= 1000 ? `${tier / 1000}k` : `${tier}`
 }
 export const UNLOCK_TARGET_LIMITS: Record<UnlockMetric, { min: number; max: number; step: number }> = {
   hits: { min: 1, max: 9999, step: 1 },

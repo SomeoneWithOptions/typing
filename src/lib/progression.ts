@@ -1,7 +1,9 @@
 import {
   APP_VERSION,
+  DEFAULT_FREE_CORPUS_TIER,
   DEFAULT_UNLOCK_TARGETS,
   DEFAULT_FOCUS_LETTER,
+  FREE_CORPUS_TIERS,
   MASTERY_ACCURACY_TARGET,
   MASTERY_WPM_TARGET,
   MAX_SESSION_HISTORY,
@@ -11,6 +13,7 @@ import {
 } from './constants'
 import { ALPHABET } from './types'
 import type {
+  FreeCorpusTier,
   Letter,
   LetterStats,
   PracticeMode,
@@ -31,6 +34,14 @@ export function clampUnlockTarget(metric: UnlockMetric, value: number) {
   const normalized = Number.isFinite(value) ? value : DEFAULT_UNLOCK_TARGETS[metric]
   const stepped = min + Math.round((normalized - min) / step) * step
   return Math.min(max, Math.max(min, stepped))
+}
+
+export function isFreeCorpusTier(value: number): value is FreeCorpusTier {
+  return FREE_CORPUS_TIERS.includes(value as FreeCorpusTier)
+}
+
+export function normalizeFreeCorpusTier(value?: number | null): FreeCorpusTier {
+  return value && isFreeCorpusTier(value) ? value : DEFAULT_FREE_CORPUS_TIER
 }
 
 export function normalizeUnlockTargets(targets?: Partial<UnlockTargets> | null): UnlockTargets {
@@ -131,6 +142,7 @@ export function createInitialProgressState(timestamp = new Date().toISOString())
     settings: {
       mode: 'adaptive',
       focusLetter: DEFAULT_FOCUS_LETTER,
+      freeTier: DEFAULT_FREE_CORPUS_TIER,
       unlockTargets: normalizeUnlockTargets(),
     },
   }
@@ -184,8 +196,15 @@ export function hydratingProgressState(input: ProgressState | null): ProgressSta
   const nextUnlockLetter =
     input.nextUnlockLetter && isLetter(input.nextUnlockLetter) ? input.nextUnlockLetter : getRemainingUnlocks(unlockedLetters)[0] ?? null
 
-  const mode: PracticeMode = input.settings?.mode === 'focus' ? 'focus' : 'adaptive'
+  const mode: PracticeMode =
+    input.settings?.mode === 'focus' || input.settings?.mode === 'free' ? input.settings.mode : 'adaptive'
   const unlockTargets = normalizeUnlockTargets(input.settings?.unlockTargets)
+  const freeTier = normalizeFreeCorpusTier(input.settings?.freeTier)
+  const sessions = input.sessions.slice(0, MAX_SESSION_HISTORY).map((session) => ({
+    ...session,
+    focusLetter: session.mode === 'focus' && session.focusLetter && isLetter(session.focusLetter) ? session.focusLetter : null,
+    freeTier: session.mode === 'free' ? normalizeFreeCorpusTier(session.freeTier) : null,
+  }))
 
   return {
     ...base,
@@ -198,10 +217,11 @@ export function hydratingProgressState(input: ProgressState | null): ProgressSta
       ...input.settings,
       focusLetter:
         input.settings && isLetter(input.settings.focusLetter) ? input.settings.focusLetter : DEFAULT_FOCUS_LETTER,
+      freeTier,
       mode,
       unlockTargets,
     },
-    sessions: input.sessions.slice(0, MAX_SESSION_HISTORY),
+    sessions,
   }
 }
 

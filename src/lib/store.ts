@@ -1,6 +1,7 @@
 import { create } from 'zustand'
-import { LESSON_IDLE_TIMEOUT_MS } from './constants'
-import { generateLesson } from './lesson-engine'
+import { formatFreeCorpusTier, LESSON_IDLE_TIMEOUT_MS, MAX_SESSION_HISTORY } from './constants'
+import { hasFreeWordsForTier, loadFreeWordsForTier } from './free-corpus'
+import { generateFreeLesson, generateLesson } from './lesson-engine'
 import {
   clampUnlockTarget,
   createInitialProgressState,
@@ -12,6 +13,7 @@ import {
 import { getAccuracy, getWpm } from './session-metrics'
 import { indexedDbStorage } from './storage'
 import type {
+  FreeCorpusTier,
   GeneratedLesson,
   Letter,
   PracticeMode,
@@ -39,14 +41,67 @@ function shouldCountMetricAttempt(attempt: SessionKeyAttempt, attempts: SessionK
 }
 
 function createLesson(progress: ProgressState) {
+  if (progress.settings.mode === 'free' && !hasFreeWordsForTier(progress.settings.freeTier)) {
+    const words = Array.from({ length: 5 }, () => 'loading').flatMap((word) => Array.from({ length: 5 }, () => word))
+
+    return {
+      id: `free-loading-${progress.settings.freeTier}-${Date.now()}`,
+      mode: 'free',
+      focusLetter: null,
+      freeTier: progress.settings.freeTier,
+      words,
+      text: words.join(' '),
+      targetLetters: [],
+    } as GeneratedLesson
+  }
+
   return generateLesson(
     progress,
     progress.settings.mode,
     progress.settings.mode === 'focus' ? progress.settings.focusLetter : null,
+    progress.settings.mode === 'free' ? progress.settings.freeTier : null,
   )
 }
 
+async function ensureFreeLessonReady(
+  progress: ProgressState,
+  set: (partial:
+    | TypingStore
+    | Partial<TypingStore>
+    | ((state: TypingStore) => TypingStore | Partial<TypingStore>),
+  ) => void,
+) {
+  if (progress.settings.mode !== 'free') {
+    return
+  }
+
+  const freeTier = progress.settings.freeTier
+  await loadFreeWordsForTier(freeTier)
+
+  set((state) => {
+    if (state.progress.settings.mode !== 'free' || state.progress.settings.freeTier !== freeTier) {
+      return {}
+    }
+
+    return {
+      lesson: generateFreeLesson(freeTier),
+      currentIndex: 0,
+      attempts: [],
+      metricAttempts: [],
+      backspaces: 0,
+      lessonStartedAt: null,
+      lastInputAt: null,
+      clock: Date.now(),
+      statusMessage: `Free practice: English ${formatFreeCorpusTier(freeTier)} ready.`,
+    }
+  })
+}
+
 function getCurrentLetter(progress: ProgressState, lesson: GeneratedLesson) {
+  if (progress.settings.mode === 'free') {
+    return null
+  }
+
   return lesson.targetLetters[0] ?? (progress.settings.mode === 'focus' ? progress.settings.focusLetter : getUnlockStatus(progress).bottleneckLetter)
 }
 
@@ -86,11 +141,11 @@ function createCompletedLessonState(
   const correctChars = state.lesson.text.length
   const sessionWpm = getWpm(correctChars, Math.max(1, finishedAt - startedAt))
   const sessionAccuracy = getAccuracy(correctChars, nextMetricAttempts.length)
-  const weakLetters = getWeakLetters(state.progress, 3)
-  const nextProgress = updateProgressFromSession(state.progress, nextMetricAttempts, {
+  const sessionRecord = {
     id: crypto.randomUUID(),
     mode: state.progress.settings.mode,
     focusLetter: state.progress.settings.mode === 'focus' ? state.progress.settings.focusLetter : null,
+    freeTier: state.progress.settings.mode === 'free' ? state.progress.settings.freeTier : null,
     startedAt: new Date(startedAt).toISOString(),
     endedAt,
     words: state.lesson.words,
@@ -99,6 +154,32 @@ function createCompletedLessonState(
     accuracy: sessionAccuracy,
     wpm: sessionWpm,
     backspaces: state.backspaces,
+    weakLetters: getWeakLetters(state.progress, 3),
+  }
+
+  if (state.progress.settings.mode === 'free') {
+    const nextProgress: ProgressState = {
+      ...state.progress,
+      sessions: [
+        {
+          ...sessionRecord,
+          unlockedAfterSession: [...state.progress.unlockedLetters],
+        },
+        ...state.progress.sessions,
+      ].slice(0, MAX_SESSION_HISTORY),
+    }
+
+    return {
+      progress: nextProgress,
+      statusMessage: `Free practice: English ${formatFreeCorpusTier(state.progress.settings.freeTier)} ready.`,
+      ...createLessonState(nextProgress, finishedAt),
+    }
+  }
+
+  const weakLetters = getWeakLetters(state.progress, 3)
+  const nextProgress = updateProgressFromSession(state.progress, nextMetricAttempts, {
+    ...sessionRecord,
+    freeTier: null,
     weakLetters,
   })
   const newUnlock = nextProgress.unlockedLetters.find((letter) => !state.progress.unlockedLetters.includes(letter))
@@ -128,10 +209,11 @@ export interface TypingStoreState {
 
 export interface TypingStoreActions {
   hydrate: () => Promise<void>
-  setMode: (mode: PracticeMode) => void
+  setMode: (mode: PracticeMode) => Promise<void>
   setFocusLetter: (focusLetter: Letter) => void
+  setFreeTier: (freeTier: FreeCorpusTier) => Promise<void>
   setUnlockTarget: (metric: UnlockMetric, value: number) => void
-  queueFreshLesson: () => void
+  queueFreshLesson: () => Promise<void>
   resetCurrentLetter: () => void
   handleTypedKey: (key: string) => void
   handleBackspace: () => void
@@ -162,6 +244,10 @@ export const useTypingStore = create<TypingStore>((set) => ({
     const storedProgress = await indexedDbStorage.load()
     const nextProgress = storedProgress ?? createInitialProgressState()
 
+    if (nextProgress.settings.mode === 'free') {
+      await loadFreeWordsForTier(nextProgress.settings.freeTier)
+    }
+
     set({
       progress: nextProgress,
       ...createLessonState(nextProgress),
@@ -171,8 +257,9 @@ export const useTypingStore = create<TypingStore>((set) => ({
       hasFocus: false,
     })
   },
-  setMode(mode) {
-    set((state) => {
+  async setMode(mode) {
+    const nextProgress = (() => {
+      const state = useTypingStore.getState()
       const nextProgress: ProgressState = {
         ...state.progress,
         settings: {
@@ -181,13 +268,23 @@ export const useTypingStore = create<TypingStore>((set) => ({
         },
       }
 
-      return {
+      set({
         progress: nextProgress,
         statusMessage:
-          mode === 'focus' ? `Focus drill: ${nextProgress.settings.focusLetter.toUpperCase()}` : 'Adaptive lesson ready.',
+          mode === 'focus'
+            ? `Focus drill: ${nextProgress.settings.focusLetter.toUpperCase()}`
+            : mode === 'free'
+              ? `Loading English ${formatFreeCorpusTier(nextProgress.settings.freeTier)}...`
+              : 'Adaptive lesson ready.',
         ...createLessonState(nextProgress),
-      }
-    })
+      })
+
+      return nextProgress
+    })()
+
+    if (mode === 'free') {
+      await ensureFreeLessonReady(nextProgress, set)
+    }
   },
   setFocusLetter(focusLetter) {
     set((state) => {
@@ -207,6 +304,37 @@ export const useTypingStore = create<TypingStore>((set) => ({
       }
     })
   },
+  async setFreeTier(freeTier) {
+    const nextProgress = (() => {
+      const state = useTypingStore.getState()
+      const nextProgress: ProgressState = {
+        ...state.progress,
+        settings: {
+          ...state.progress.settings,
+          freeTier,
+        },
+      }
+
+      if (state.progress.settings.mode !== 'free') {
+        set({
+          progress: nextProgress,
+        })
+        return nextProgress
+      }
+
+      set({
+        progress: nextProgress,
+        statusMessage: `Loading English ${formatFreeCorpusTier(freeTier)}...`,
+        ...createLessonState(nextProgress),
+      })
+
+      return nextProgress
+    })()
+
+    if (nextProgress.settings.mode === 'free') {
+      await ensureFreeLessonReady(nextProgress, set)
+    }
+  },
   setUnlockTarget(metric, value) {
     set((state) => ({
       progress: {
@@ -221,7 +349,17 @@ export const useTypingStore = create<TypingStore>((set) => ({
       },
     }))
   },
-  queueFreshLesson() {
+  async queueFreshLesson() {
+    const progress = useTypingStore.getState().progress
+
+    if (progress.settings.mode === 'free') {
+      set({
+        statusMessage: `Loading English ${formatFreeCorpusTier(progress.settings.freeTier)}...`,
+      })
+      await ensureFreeLessonReady(progress, set)
+      return
+    }
+
     set((state) => createLessonState(state.progress))
   },
   resetCurrentLetter() {

@@ -3,6 +3,7 @@ import { FALLBACK_WORDS_TEXT } from './fallback-words'
 import type { WordCandidate } from './types'
 
 const PREFERRED_COMMON_WORD_LIMIT = 10_000
+const FREE_WORD_MATCHER = /^[a-z]+$/
 const EXCLUDED_WORDS = new Set([
   'ali',
   'alan',
@@ -428,10 +429,28 @@ const CORE_WORDS = [
   'fuzzy',
 ] as const
 
-const commonWords = COMMON_WORDS_TEXT.trim().split('\n').filter((word) => !EXCLUDED_WORDS.has(word))
+function normalizeWordList(words: string[]) {
+  const deduped: string[] = []
+  const seen = new Set<string>()
+
+  for (const rawWord of words) {
+    const word = rawWord.trim().toLowerCase()
+
+    if (!FREE_WORD_MATCHER.test(word) || EXCLUDED_WORDS.has(word) || seen.has(word)) {
+      continue
+    }
+
+    seen.add(word)
+    deduped.push(word)
+  }
+
+  return deduped
+}
+
+const commonWords = normalizeWordList(COMMON_WORDS_TEXT.trim().split('\n'))
 const preferredCommonWords = commonWords.slice(0, PREFERRED_COMMON_WORD_LIMIT)
 const extendedCommonWords = commonWords.slice(PREFERRED_COMMON_WORD_LIMIT)
-const fallbackWords = [...extendedCommonWords, ...FALLBACK_WORDS_TEXT.trim().split('\n')].filter((word) => !EXCLUDED_WORDS.has(word))
+const fallbackWords = normalizeWordList([...extendedCommonWords, ...FALLBACK_WORDS_TEXT.trim().split('\n')])
 const primaryWords = [...new Set([...CORE_WORDS, ...preferredCommonWords])]
 const primaryWordSet = new Set(primaryWords)
 
@@ -445,6 +464,6 @@ export const FALLBACK_WORD_CORPUS: WordCandidate[] = fallbackWords
   .map((word, index) => ({
     word,
     rank: PRIMARY_WORD_CORPUS.length + index + 1,
-  }))
+}))
 
 export const WORD_CORPUS: WordCandidate[] = [...PRIMARY_WORD_CORPUS, ...FALLBACK_WORD_CORPUS]

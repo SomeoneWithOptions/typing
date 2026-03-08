@@ -369,6 +369,24 @@ button.unlock-target-chip:focus-visible {
   color: var(--error);
 }
 
+.free-mode-panel {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.2rem;
+  border: 1px solid var(--b-normal);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  font-family: var(--font-mono);
+  color: var(--t-secondary);
+}
+
+.free-mode-panel__copy {
+  margin: 0;
+  color: var(--t-muted);
+  font-size: 0.76rem;
+}
+
 .metric-item--next-letter {
   grid-column: 3;
   justify-self: end;
@@ -418,6 +436,12 @@ button.unlock-target-chip:focus-visible {
   .metric-item--next-letter {
     grid-column: auto;
     justify-self: center;
+  }
+
+  .free-mode-panel {
+    flex-direction: column;
+    align-items: flex-start;
+    border-radius: 1rem;
   }
 }
 

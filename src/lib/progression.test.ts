@@ -58,6 +58,7 @@ describe('progression', () => {
       id: 'session-1',
       mode: 'adaptive',
       focusLetter: null,
+      freeTier: null,
       startedAt: '2026-03-07T00:00:00.000Z',
       endedAt: '2026-03-07T00:01:00.000Z',
       words: ['learn'],
@@ -174,6 +175,7 @@ describe('progression', () => {
     legacyState.settings = {
       mode: 'focus',
       focusLetter: 'q',
+      freeTier: 200,
       unlockTargets: undefined as never,
     }
 
@@ -197,6 +199,20 @@ describe('progression', () => {
       accuracy: 100,
       wpm: 300,
     })
+  })
+
+  it('hydrates missing free tier values to the 200-word default', () => {
+    const legacyState = createInitialProgressState('2026-03-07T00:00:00.000Z')
+    legacyState.settings = {
+      ...legacyState.settings,
+      mode: 'free',
+      freeTier: undefined as never,
+    }
+
+    const hydratedLegacy = hydratingProgressState(legacyState)
+
+    expect(hydratedLegacy.settings.mode).toBe('free')
+    expect(hydratedLegacy.settings.freeTier).toBe(200)
   })
 
   it('applies custom unlock targets to sessions completed in focus mode', () => {
@@ -234,6 +250,7 @@ describe('progression', () => {
       id: 'focus-session-1',
       mode: 'focus',
       focusLetter: 'e',
+      freeTier: null,
       startedAt: '2026-03-07T00:00:00.000Z',
       endedAt: '2026-03-07T00:01:00.000Z',
       words: ['e'],
