@@ -389,6 +389,7 @@ describe('typing store', () => {
 
     expect(state.progress.unlockedLetters).toContain('t')
     expect(state.progress.sessions[0]?.unlockedAfterSession).toContain('t')
+    expect(state.progress.sessions[0]?.targetLetter).toBe('e')
     expect(state.statusMessage).toBe('T unlocked.')
     expect(state.currentIndex).toBe(0)
     expect(state.attempts).toEqual([])
@@ -522,6 +523,7 @@ describe('typing store', () => {
     expect(state.progress.sessions[0]).toMatchObject({
       mode: 'free',
       focusLetter: null,
+      targetLetter: null,
       freeTier: 1000,
     })
     expect(state.statusMessage).toBe('Free practice: English 1k ready.')
@@ -589,6 +591,14 @@ describe('typing store', () => {
       fastestWpm: 41,
       lastPracticedAt: '2026-03-07T12:00:00.000Z',
       masteredAt: '2026-03-07T12:00:00.000Z',
+      recentSessions: [
+        {
+          endedAt: '2026-03-07T12:00:00.000Z',
+          attempts: 14,
+          correctHits: 11,
+          totalCorrectMs: 3200,
+        },
+      ],
     }
     progress.letterStats.n = {
       ...progress.letterStats.n,
@@ -614,6 +624,7 @@ describe('typing store', () => {
     expect(state.progress.letterStats.e.fastestWpm).toBe(0)
     expect(state.progress.letterStats.e.lastPracticedAt).toBeNull()
     expect(state.progress.letterStats.e.masteredAt).toBeNull()
+    expect(state.progress.letterStats.e.recentSessions).toEqual([])
     expect(state.progress.letterStats.e.unlockedAt).toBe(progress.letterStats.e.unlockedAt)
     expect(state.progress.letterStats.n.attempts).toBe(9)
     expect(state.progress.sessions).toEqual(progress.sessions)

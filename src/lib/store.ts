@@ -145,6 +145,7 @@ function createCompletedLessonState(
     id: crypto.randomUUID(),
     mode: state.progress.settings.mode,
     focusLetter: state.progress.settings.mode === 'focus' ? state.progress.settings.focusLetter : null,
+    targetLetter: state.lesson.targetLetters[0] ?? null,
     freeTier: state.progress.settings.mode === 'free' ? state.progress.settings.freeTier : null,
     startedAt: new Date(startedAt).toISOString(),
     endedAt,

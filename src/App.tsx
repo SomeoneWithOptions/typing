@@ -14,6 +14,7 @@ import {
   type UnlockMetric,
   type GeneratedLesson,
   type Letter,
+  type SessionRecord,
 } from './lib/types'
 import {
   getUnlockStatus,
@@ -40,6 +41,14 @@ function formatPercent(value: number) {
 
 function formatWpm(value: number) {
   return `${Math.round(value)}`
+}
+
+function getSessionDetail(session: SessionRecord) {
+  if (session.mode === 'free') {
+    return session.freeTier ? formatFreeCorpusTier(session.freeTier) : '—'
+  }
+
+  return session.targetLetter?.toUpperCase() ?? session.focusLetter?.toUpperCase() ?? '—'
 }
 
 function getUnlockTargetError(metric: UnlockMetric, rawValue: string) {
@@ -189,6 +198,7 @@ export default function App() {
   const lastAttempt = attempts[attempts.length - 1] ?? null
   const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
   const recentSessions = progress.sessions.slice(0, 5)
+  const isAdaptiveMode = progress.settings.mode === 'adaptive'
   const isFocusMode = progress.settings.mode === 'focus'
   const isFreeMode = progress.settings.mode === 'free'
   const unlockTargets = progress.settings.unlockTargets
@@ -198,6 +208,7 @@ export default function App() {
   const unlockMetricCards: Array<{
     metric: UnlockMetric
     label: string
+    letter: Letter | null
     currentValue: string
     targetValue: string
     statusClassName: string
@@ -205,6 +216,7 @@ export default function App() {
     {
       metric: 'hits',
       label: 'hits',
+      letter: unlockStatus.sampleLetter,
       currentValue: formatNumber(unlockStatus.sampleHits),
       targetValue: formatNumber(unlockTargets.hits),
       statusClassName: unlockStatus.sampleProgress >= 1 ? 'metric--met' : 'metric--unmet',
@@ -212,6 +224,7 @@ export default function App() {
     {
       metric: 'accuracy',
       label: 'acc',
+      letter: unlockStatus.accuracyLetter,
       currentValue: formatPercent(unlockStatus.accuracyValue),
       targetValue: `${unlockTargets.accuracy}%`,
       statusClassName: unlockStatus.accuracyProgress >= 1 ? 'metric--met' : 'metric--unmet',
@@ -219,6 +232,7 @@ export default function App() {
     {
       metric: 'wpm',
       label: 'wpm',
+      letter: unlockStatus.speedLetter,
       currentValue: formatNumber(truncate(unlockStatus.speedWpm, 2), 2),
       targetValue: formatNumber(unlockTargets.wpm),
       statusClassName: unlockStatus.speedProgress >= 1 ? 'metric--met' : 'metric--unmet',
@@ -475,10 +489,10 @@ export default function App() {
                   </h3>
                   <div className="unlock-progress-strip">
                     <div className="unlock-progress-strip__core">
-                      {unlockMetricCards.map(({ metric, label, currentValue, targetValue, statusClassName }) => (
+                      {unlockMetricCards.map(({ metric, label, letter, currentValue, targetValue, statusClassName }) => (
                         editingMetric === metric ? (
                           <div className="metric-item unlock-target-chip unlock-target-chip--editing" key={metric}>
-                            <span>{label}</span>
+                            <span>{letter ? `${label} ${letter.toUpperCase()}` : label}</span>
                             <div className="unlock-target-editor">
                               <strong className={statusClassName}>
                                 {currentValue}/
@@ -516,13 +530,13 @@ export default function App() {
                           </div>
                         ) : (
                           <button
-                            aria-label={`Edit ${label} unlock target`}
+                            aria-label={`Edit ${label}${letter ? ` for ${letter.toUpperCase()}` : ''} unlock target`}
                             className="metric-item unlock-target-chip"
                             key={metric}
                             onClick={() => beginUnlockTargetEdit(metric)}
                             type="button"
                           >
-                            <span>{label}</span>
+                            <span>{letter ? `${label} ${letter.toUpperCase()}` : label}</span>
                             <strong className={statusClassName}>
                               {currentValue}/{targetValue}
                             </strong>
@@ -559,31 +573,55 @@ export default function App() {
                 ) : (
                   recentSessions.map((session) => (
                     <div className="session-row" key={session.id}>
-                      <span>
-                        {session.mode === 'focus' && session.focusLetter
-                          ? `focus ${session.focusLetter.toUpperCase()}`
-                          : session.mode === 'free' && session.freeTier
-                            ? `free ${formatFreeCorpusTier(session.freeTier)}`
-                            : 'adaptive'}
+                      <span className="session-row__cell session-row__mode">{session.mode}</span>
+                      <span className="session-row__cell session-row__detail">{getSessionDetail(session)}</span>
+                      <span className="session-row__cell session-row__stat">{formatWpm(session.wpm)} wpm</span>
+                      <span className="session-row__cell session-row__stat">{formatPercent(session.accuracy)}</span>
+                      <span className="session-row__cell session-row__time">
+                        {new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      <span>{formatWpm(session.wpm)} wpm</span>
-                      <span>{formatPercent(session.accuracy)}</span>
-                      <span>{new Date(session.endedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   ))
                 )}
               </div>
             </div>
 
-            <aside className="keyboard-section">
-              <h3 className="info-section-title">Keyboard Map</h3>
-              <KeyboardMap />
-              <div style={{ marginTop: '2rem' }}>
-                <span className="letter-count" style={{ color: 'var(--t-muted)', fontSize: '0.8rem' }}>
-                  {isFreeMode ? '26/26 letters available in free mode' : `${progress.unlockedLetters.length}/26 letters unlocked`}
-                </span>
-              </div>
-            </aside>
+            {isAdaptiveMode ? (
+              <aside className="keyboard-section">
+                <div className="keyboard-section__header">
+                  <div>
+                    <h3 className="info-section-title">Adaptive Keyboard</h3>
+                    <p className="keyboard-section__intro">
+                      Each key shows your best speed. Unlocked letters are green, the active target is highlighted in red.
+                    </p>
+                  </div>
+                  <div className="keyboard-section__summary">
+                    {currentLetter ? (
+                      <span className="keyboard-pill keyboard-pill--current">
+                        working on {currentLetter.toUpperCase()}
+                      </span>
+                    ) : null}
+                    {progress.nextUnlockLetter ? (
+                      <span className="keyboard-pill">
+                        next {progress.nextUnlockLetter.toUpperCase()}
+                      </span>
+                    ) : null}
+                    <span className="keyboard-pill">
+                      goal {unlockTargets.wpm} wpm
+                    </span>
+                  </div>
+                </div>
+                <KeyboardMap />
+                <div className="keyboard-section__footer">
+                  <span className="letter-count keyboard-section__count">
+                    {`${progress.unlockedLetters.length}/26 unlocked`}
+                  </span>
+                  <span className="keyboard-section__note">
+                    WPM shown per key
+                  </span>
+                </div>
+              </aside>
+            ) : null}
           </section>
         </main>
       </div>

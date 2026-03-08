@@ -1,4 +1,4 @@
-import { getLetterAccuracy, getLetterWpm, getWeakLetters } from '../lib/progression'
+import { getLetterAccuracy, getLetterHits, getLetterWpm, getWeakLetters } from '../lib/progression'
 import { useTypingStore } from '../lib/store'
 
 export function LetterLedger() {
@@ -30,7 +30,7 @@ export function LetterLedger() {
               <span role="cell">{letter.toUpperCase()}</span>
               <span role="cell">{Math.round(getLetterWpm(stats))}</span>
               <span role="cell">{Math.round(getLetterAccuracy(stats))}%</span>
-              <span role="cell">{stats.correctHits}</span>
+              <span role="cell">{getLetterHits(stats)}</span>
             </div>
           )
         })}

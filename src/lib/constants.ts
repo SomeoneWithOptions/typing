@@ -3,6 +3,7 @@ import type { FreeCorpusTier, Letter, UnlockMetric, UnlockSequence, UnlockTarget
 export const APP_VERSION = 3
 export const LESSON_WORD_COUNT = 25
 export const MAX_SESSION_HISTORY = 120
+export const RECENT_LETTER_SESSIONS = 10
 export const UNLOCK_SAMPLE_TARGET = 40
 export const UNLOCK_WPM_TARGET = 24
 export const UNLOCK_ACCURACY_TARGET = 95

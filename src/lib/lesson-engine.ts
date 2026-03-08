@@ -1,6 +1,5 @@
 import { LESSON_WORD_COUNT, LEFT_HAND_LETTERS } from './constants'
 import { getFreeWordsForTier } from './free-corpus'
-import { getWeakLetters } from './progression'
 import { FALLBACK_WORD_CORPUS, PRIMARY_WORD_CORPUS } from './word-corpus'
 import type { FreeCorpusTier, GeneratedLesson, Letter, PracticeMode, ProgressState, WordCandidate } from './types'
 
@@ -59,13 +58,9 @@ function getAdaptiveTargetLetter(state: ProgressState) {
   return state.unlockedLetters[state.unlockedLetters.length - 1] ?? null
 }
 
-function scoreAdaptiveWord(candidate: WordCandidate, trainingLetter: Letter, weakLetters: Letter[]) {
+function scoreAdaptiveWord(candidate: WordCandidate, trainingLetter: Letter) {
   const frequencyScore = Math.max(0, 1200 - candidate.rank) / 1200
   const trainingLetterScore = countOccurrences(candidate.word, trainingLetter) * 4.4
-  const weakLetterScore = weakLetters.reduce((score, letter, index) => {
-    const weight = 0.9 - index * 0.25
-    return score + countOccurrences(candidate.word, letter) * weight
-  }, 0)
   const lengthScore =
     candidate.word.length >= MIN_PREFERRED_WORD_LENGTH
       ? 0.8 + Math.min(candidate.word.length - MIN_PREFERRED_WORD_LENGTH, 4) * 0.28
@@ -73,7 +68,7 @@ function scoreAdaptiveWord(candidate: WordCandidate, trainingLetter: Letter, wea
   const alternationScore = getAlternationScore(candidate.word)
   const uniqueLetters = new Set(candidate.word).size / candidate.word.length
 
-  return frequencyScore + trainingLetterScore + weakLetterScore + lengthScore + alternationScore + uniqueLetters - getRepeatPenalty(candidate.word)
+  return frequencyScore + trainingLetterScore + lengthScore + alternationScore + uniqueLetters - getRepeatPenalty(candidate.word)
 }
 
 function scoreFocusWord(candidate: WordCandidate, focusLetter: Letter) {
@@ -204,10 +199,8 @@ export function generateLesson(
     return generateFreeLesson(freeTier)
   }
 
-  const weakLetters = getWeakLetters(state, 3)
   const unlockedSet = new Set(state.unlockedLetters)
   const trainingLetter = getAdaptiveTargetLetter(state)
-  const adaptiveSupportLetters = weakLetters.filter((letter) => letter !== trainingLetter)
   const adaptivePool = getCandidatePool(mode, focusLetter, unlockedSet, trainingLetter)
   const scoredCandidates =
     mode === 'focus' && focusLetter
@@ -220,17 +213,17 @@ export function generateLesson(
       : adaptivePool
           .map((candidate) => ({
             ...candidate,
-            score: scoreAdaptiveWord(candidate, trainingLetter ?? weakLetters[0], adaptiveSupportLetters),
+            score: scoreAdaptiveWord(candidate, trainingLetter ?? state.unlockedLetters[0]),
           }))
           .sort((left, right) => right.score - left.score)
 
   const words = pickLessonWords(scoredCandidates.map((candidate) => candidate.word))
   const targetLetters =
     mode === 'focus' && focusLetter
-      ? [focusLetter, ...weakLetters.filter((letter) => letter !== focusLetter)]
+      ? [focusLetter]
       : trainingLetter
-        ? [trainingLetter, ...adaptiveSupportLetters]
-        : weakLetters
+        ? [trainingLetter]
+        : []
 
   return {
     id: `${mode}-${focusLetter ?? 'adaptive'}-${Date.now()}`,

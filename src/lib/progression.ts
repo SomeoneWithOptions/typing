@@ -7,6 +7,7 @@ import {
   MASTERY_ACCURACY_TARGET,
   MASTERY_WPM_TARGET,
   MAX_SESSION_HISTORY,
+  RECENT_LETTER_SESSIONS,
   UNLOCK_SAMPLE_TARGET,
   UNLOCK_TARGET_LIMITS,
   UNLOCK_SEQUENCE,
@@ -15,6 +16,7 @@ import { ALPHABET } from './types'
 import type {
   FreeCorpusTier,
   Letter,
+  LetterSessionStats,
   LetterStats,
   PracticeMode,
   ProgressState,
@@ -89,6 +91,119 @@ function getLowestMetric<T extends number>(
   })())
 }
 
+function getRecentLetterSessions(stats: LetterStats) {
+  return stats.recentSessions.length > 0 ? stats.recentSessions : []
+}
+
+function getRecentAttempts(stats: LetterStats) {
+  const sessions = getRecentLetterSessions(stats)
+  return sessions.length > 0 ? sessions.reduce((sum, session) => sum + session.attempts, 0) : stats.attempts
+}
+
+function getRecentCorrectHits(stats: LetterStats) {
+  const sessions = getRecentLetterSessions(stats)
+  return sessions.length > 0 ? sessions.reduce((sum, session) => sum + session.correctHits, 0) : stats.correctHits
+}
+
+function getRecentAccuracyAverage(stats: LetterStats) {
+  const sessions = getRecentLetterSessions(stats)
+
+  if (sessions.length === 0) {
+    const attempts = stats.attempts === 0 ? getRecentAttempts(stats) : stats.attempts
+    return attempts === 0 ? 0 : (stats.correctHits / attempts) * 100
+  }
+
+  return sessions.reduce((sum, session) => {
+    if (typeof session.accuracy === 'number' && Number.isFinite(session.accuracy)) {
+      return sum + session.accuracy
+    }
+
+    if (session.attempts === 0) {
+      return sum
+    }
+
+    return sum + (session.correctHits / session.attempts) * 100
+  }, 0) / sessions.length
+}
+
+function getRecentWpmAverage(stats: LetterStats) {
+  const sessions = getRecentLetterSessions(stats)
+
+  if (sessions.length === 0) {
+    return msToWpm(stats.smoothedMs)
+  }
+
+  return sessions.reduce((sum, session) => {
+    if (typeof session.wpm === 'number' && Number.isFinite(session.wpm)) {
+      return sum + session.wpm
+    }
+
+    if (session.correctHits === 0 || session.totalCorrectMs <= 0) {
+      return sum
+    }
+
+    return sum + msToWpm(session.totalCorrectMs / session.correctHits)
+  }, 0) / sessions.length
+}
+
+function getActiveUnlockLetter(state: ProgressState) {
+  if (state.settings.mode === 'focus') {
+    return state.settings.focusLetter
+  }
+
+  if (state.settings.mode === 'adaptive') {
+    return state.unlockedLetters[state.unlockedLetters.length - 1] ?? null
+  }
+
+  return null
+}
+
+function getSessionTargetLetter(
+  state: ProgressState,
+  session: Omit<SessionRecord, 'unlockedAfterSession'>,
+) {
+  if (session.targetLetter && isLetter(session.targetLetter)) {
+    return session.targetLetter
+  }
+
+  if (session.mode === 'focus' && session.focusLetter && isLetter(session.focusLetter)) {
+    return session.focusLetter
+  }
+
+  if (session.mode === 'adaptive') {
+    return getActiveUnlockLetter(state)
+  }
+
+  return null
+}
+
+function isValidRecentLetterSession(value: unknown): value is LetterSessionStats {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Partial<LetterSessionStats>
+  return (
+    typeof candidate.endedAt === 'string' &&
+    typeof candidate.attempts === 'number' &&
+    Number.isFinite(candidate.attempts) &&
+    typeof candidate.correctHits === 'number' &&
+    Number.isFinite(candidate.correctHits) &&
+    typeof candidate.totalCorrectMs === 'number' &&
+    Number.isFinite(candidate.totalCorrectMs) &&
+    (typeof candidate.accuracy === 'undefined' || (typeof candidate.accuracy === 'number' && Number.isFinite(candidate.accuracy))) &&
+    (typeof candidate.wpm === 'undefined' || (typeof candidate.wpm === 'number' && Number.isFinite(candidate.wpm)))
+  )
+}
+
+function normalizeRecentLetterSessions(value: unknown) {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.filter(isValidRecentLetterSession).slice(-RECENT_LETTER_SESSIONS)
+}
+
 export function isLetter(value: string): value is Letter {
   return ALPHABET.includes(value as Letter)
 }
@@ -102,15 +217,15 @@ export function msToWpm(ms: number | null) {
 }
 
 export function getLetterAccuracy(stats: LetterStats) {
-  if (stats.attempts === 0) {
-    return 0
-  }
-
-  return (stats.correctHits / stats.attempts) * 100
+  return getRecentAccuracyAverage(stats)
 }
 
 export function getLetterWpm(stats: LetterStats) {
-  return msToWpm(stats.smoothedMs)
+  return getRecentWpmAverage(stats)
+}
+
+export function getLetterHits(stats: LetterStats) {
+  return getRecentCorrectHits(stats)
 }
 
 export function createLetterStats(letter: Letter, unlocked = false, timestamp = new Date().toISOString()): LetterStats {
@@ -124,6 +239,7 @@ export function createLetterStats(letter: Letter, unlocked = false, timestamp = 
     lastPracticedAt: null,
     unlockedAt: unlocked ? timestamp : null,
     masteredAt: null,
+    recentSessions: [],
   }
 }
 
@@ -184,6 +300,7 @@ export function hydratingProgressState(input: ProgressState | null): ProgressSta
               ...saved,
               letter,
               unlockedAt: saved.unlockedAt ?? (unlockedSet.has(letter) ? base.letterStats[letter].unlockedAt : null),
+              recentSessions: normalizeRecentLetterSessions(saved.recentSessions),
             }
           : {
               ...base.letterStats[letter],
@@ -203,6 +320,7 @@ export function hydratingProgressState(input: ProgressState | null): ProgressSta
   const sessions = input.sessions.slice(0, MAX_SESSION_HISTORY).map((session) => ({
     ...session,
     focusLetter: session.mode === 'focus' && session.focusLetter && isLetter(session.focusLetter) ? session.focusLetter : null,
+    targetLetter: session.mode !== 'free' && session.targetLetter && isLetter(session.targetLetter) ? session.targetLetter : null,
     freeTier: session.mode === 'free' ? normalizeFreeCorpusTier(session.freeTier) : null,
   }))
 
@@ -237,20 +355,17 @@ export function getWeakLetters(state: ProgressState, count = 3) {
 }
 
 export function getUnlockStatus(state: ProgressState): UnlockStatus {
-  const unlockedLetters = state.unlockedLetters
+  const activeLetter = getActiveUnlockLetter(state)
   const { hits, accuracy, wpm } = state.settings.unlockTargets
-  const bottleneckLetter =
-    unlockedLetters.length > 0
-      ? [...unlockedLetters].sort((a, b) => getLetterWeakness(state.letterStats[b]) - getLetterWeakness(state.letterStats[a]))[0]
-      : null
-  const sampleStatus = getLowestMetric(unlockedLetters, (letter) => state.letterStats[letter].correctHits, hits)
-  const accuracyStatus = getLowestMetric(unlockedLetters, (letter) => getLetterAccuracy(state.letterStats[letter]), accuracy)
-  const speedStatus = getLowestMetric(unlockedLetters, (letter) => getLetterWpm(state.letterStats[letter]), wpm)
+  const trackedLetters = activeLetter ? [activeLetter] : []
+  const sampleStatus = getLowestMetric(trackedLetters, (letter) => getRecentCorrectHits(state.letterStats[letter]), hits)
+  const accuracyStatus = getLowestMetric(trackedLetters, (letter) => getLetterAccuracy(state.letterStats[letter]), accuracy)
+  const speedStatus = getLowestMetric(trackedLetters, (letter) => getLetterWpm(state.letterStats[letter]), wpm)
 
   if (!state.nextUnlockLetter) {
     return {
       nextLetter: null,
-      bottleneckLetter,
+      bottleneckLetter: activeLetter,
       sampleLetter: sampleStatus.letter,
       sampleHits: sampleStatus.value,
       sampleProgress: 1,
@@ -265,7 +380,7 @@ export function getUnlockStatus(state: ProgressState): UnlockStatus {
 
   return {
     nextLetter: state.nextUnlockLetter,
-    bottleneckLetter,
+    bottleneckLetter: activeLetter,
     sampleLetter: sampleStatus.letter,
     sampleHits: sampleStatus.value,
     sampleProgress: sampleStatus.progress,
@@ -314,7 +429,7 @@ export function updateProgressFromSession(
 
     if (
       !updated.masteredAt &&
-      updated.correctHits >= UNLOCK_SAMPLE_TARGET &&
+      getRecentCorrectHits(updated) >= UNLOCK_SAMPLE_TARGET &&
       getLetterAccuracy(updated) >= MASTERY_ACCURACY_TARGET &&
       getLetterWpm(updated) >= MASTERY_WPM_TARGET
     ) {
@@ -322,6 +437,40 @@ export function updateProgressFromSession(
     }
 
     nextState.letterStats[attempt.expected] = updated
+  }
+
+  const targetLetter = getSessionTargetLetter(state, session)
+
+  if (targetLetter) {
+    const current = nextState.letterStats[targetLetter]
+    const correctHits = attempts.filter((attempt) => attempt.correct && attempt.expected === targetLetter).length
+
+    const recentStats: LetterSessionStats = {
+      endedAt: now,
+      attempts: session.attempts,
+      correctHits,
+      totalCorrectMs: 0,
+      accuracy: session.accuracy,
+      wpm: session.wpm,
+    }
+
+    nextState.letterStats[targetLetter] = {
+      ...current,
+      recentSessions: [...current.recentSessions, recentStats].slice(-RECENT_LETTER_SESSIONS),
+    }
+
+    const updatedTargetStats = nextState.letterStats[targetLetter]
+    if (
+      !updatedTargetStats.masteredAt &&
+      getRecentCorrectHits(updatedTargetStats) >= UNLOCK_SAMPLE_TARGET &&
+      getLetterAccuracy(updatedTargetStats) >= MASTERY_ACCURACY_TARGET &&
+      getLetterWpm(updatedTargetStats) >= MASTERY_WPM_TARGET
+    ) {
+      nextState.letterStats[targetLetter] = {
+        ...updatedTargetStats,
+        masteredAt: now,
+      }
+    }
   }
 
   if (canUnlockNextLetter(nextState) && nextState.nextUnlockLetter) {
@@ -345,24 +494,24 @@ export function updateProgressFromSession(
 }
 
 export function canUnlockNextLetter(state: ProgressState) {
-  if (!state.nextUnlockLetter) {
+  const activeLetter = getActiveUnlockLetter(state)
+
+  if (!state.nextUnlockLetter || !activeLetter) {
     return false
   }
 
   const { hits, accuracy, wpm } = state.settings.unlockTargets
+  const stats = state.letterStats[activeLetter]
 
-  return state.unlockedLetters.every((letter) => {
-    const stats = state.letterStats[letter]
-    return (
-      stats.correctHits >= hits &&
-      getLetterAccuracy(stats) >= accuracy &&
-      getLetterWpm(stats) >= wpm
-    )
-  })
+  return (
+    getRecentCorrectHits(stats) >= hits &&
+    getLetterAccuracy(stats) >= accuracy &&
+    getLetterWpm(stats) >= wpm
+  )
 }
 
 function getLetterWeakness(stats: LetterStats) {
-  const sampleGap = Math.max(0, UNLOCK_SAMPLE_TARGET - stats.correctHits) / UNLOCK_SAMPLE_TARGET
+  const sampleGap = Math.max(0, UNLOCK_SAMPLE_TARGET - getRecentCorrectHits(stats)) / UNLOCK_SAMPLE_TARGET
   const speedGap = Math.max(0, MASTERY_WPM_TARGET - getLetterWpm(stats)) / MASTERY_WPM_TARGET
   const accuracyGap = Math.max(0, MASTERY_ACCURACY_TARGET - getLetterAccuracy(stats)) / MASTERY_ACCURACY_TARGET
   return sampleGap * 0.5 + speedGap * 0.9 + accuracyGap * 1.2

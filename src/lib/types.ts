@@ -48,6 +48,16 @@ export interface LetterStats {
   lastPracticedAt: string | null
   unlockedAt: string | null
   masteredAt: string | null
+  recentSessions: LetterSessionStats[]
+}
+
+export interface LetterSessionStats {
+  endedAt: string
+  attempts: number
+  correctHits: number
+  totalCorrectMs: number
+  accuracy?: number
+  wpm?: number
 }
 
 export interface SessionKeyAttempt {
@@ -63,6 +73,7 @@ export interface SessionRecord {
   id: string
   mode: PracticeMode
   focusLetter: Letter | null
+  targetLetter?: Letter | null
   freeTier: FreeCorpusTier | null
   startedAt: string
   endedAt: string

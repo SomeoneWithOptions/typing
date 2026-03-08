@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { UNLOCK_ACCURACY_TARGET, UNLOCK_SAMPLE_TARGET } from './constants'
+import { RECENT_LETTER_SESSIONS, UNLOCK_ACCURACY_TARGET, UNLOCK_SAMPLE_TARGET } from './constants'
 import {
   canUnlockNextLetter,
   createInitialProgressState,
+  getLetterAccuracy,
   getLetterWpm,
   getUnlockStatus,
   hydratingProgressState,
@@ -39,6 +40,19 @@ describe('progression', () => {
         totalCorrectMs: 4000,
         smoothedMs: 300,
       }
+    }
+    state.letterStats.l = {
+      ...state.letterStats.l,
+      recentSessions: [
+        {
+          endedAt: '2026-03-07T00:00:00.000Z',
+          attempts: UNLOCK_SAMPLE_TARGET,
+          correctHits: UNLOCK_SAMPLE_TARGET,
+          totalCorrectMs: 0,
+          accuracy: 100,
+          wpm: 48,
+        },
+      ],
     }
 
     expect(canUnlockNextLetter(state)).toBe(true)
@@ -87,55 +101,84 @@ describe('progression', () => {
     expect(getLetterWpm(stats)).toBeGreaterThan(24)
   })
 
-  it('reports the exact blocking letter and value for each unlock metric', () => {
-    const state = createInitialProgressState('2026-03-07T00:00:00.000Z')
-
-    for (const letter of state.unlockedLetters) {
-      state.letterStats[letter] = {
-        ...state.letterStats[letter],
-        attempts: UNLOCK_SAMPLE_TARGET,
-        correctHits: UNLOCK_SAMPLE_TARGET,
-        totalCorrectMs: 4000,
-        smoothedMs: 300,
-      }
-    }
-
-    state.letterStats.a = {
-      ...state.letterStats.a,
-      attempts: 40,
-      correctHits: 39,
-      totalCorrectMs: 4000,
-      smoothedMs: 300,
-    }
-
-    state.letterStats.e = {
+  it('prefers recent per-letter sessions over lifetime aggregates for accuracy and speed', () => {
+    const state = createInitialProgressState()
+    const stats = {
       ...state.letterStats.e,
-      attempts: 42,
+      attempts: 100,
       correctHits: 40,
-      totalCorrectMs: 4000,
-      smoothedMs: 300,
+      totalCorrectMs: 20_000,
+      smoothedMs: 500,
+      recentSessions: [
+        {
+          endedAt: '2026-03-07T00:01:00.000Z',
+          attempts: 12,
+          correctHits: 12,
+          totalCorrectMs: 2_400,
+        },
+      ],
     }
 
-    state.letterStats.i = {
-      ...state.letterStats.i,
-      attempts: 40,
-      correctHits: 40,
-      totalCorrectMs: 0,
-      smoothedMs: 520,
+    expect(getLetterAccuracy(stats)).toBe(100)
+    expect(getLetterWpm(stats)).toBeCloseTo(60)
+  })
+
+  it('averages session wpm values across the last targeted sessions for a letter', () => {
+    const state = createInitialProgressState()
+    const stats = {
+      ...state.letterStats.e,
+      recentSessions: [
+        {
+          endedAt: '2026-03-07T00:01:00.000Z',
+          attempts: 30,
+          correctHits: 15,
+          totalCorrectMs: 0,
+          accuracy: 93.33,
+          wpm: 53,
+        },
+        {
+          endedAt: '2026-03-07T00:02:00.000Z',
+          attempts: 30,
+          correctHits: 15,
+          totalCorrectMs: 0,
+          accuracy: 96.31,
+          wpm: 60,
+        },
+      ],
+    }
+
+    expect(getLetterWpm(stats)).toBeCloseTo(56.5)
+    expect(getLetterAccuracy(stats)).toBeCloseTo((93.33 + 96.31) / 2)
+  })
+
+  it('reports unlock metrics for the active target letter', () => {
+    const state = createInitialProgressState('2026-03-07T00:00:00.000Z')
+    state.letterStats.l = {
+      ...state.letterStats.l,
+      recentSessions: [
+        {
+          endedAt: '2026-03-07T00:01:00.000Z',
+          attempts: 42,
+          correctHits: 39,
+          totalCorrectMs: 0,
+          accuracy: 92,
+          wpm: 47,
+        },
+      ],
     }
 
     const unlockStatus = getUnlockStatus(state)
 
-    expect(unlockStatus.sampleLetter).toBe('a')
+    expect(unlockStatus.sampleLetter).toBe('l')
     expect(unlockStatus.sampleHits).toBe(39)
     expect(unlockStatus.sampleProgress).toBe(39 / 40)
-    expect(unlockStatus.accuracyLetter).toBe('e')
-    expect(unlockStatus.accuracyValue).toBeCloseTo((40 / 42) * 100)
-    expect(unlockStatus.speedLetter).toBe('i')
-    expect(unlockStatus.speedWpm).toBeCloseTo(12000 / 520)
+    expect(unlockStatus.accuracyLetter).toBe('l')
+    expect(unlockStatus.accuracyValue).toBe(92)
+    expect(unlockStatus.speedLetter).toBe('l')
+    expect(unlockStatus.speedWpm).toBe(47)
   })
 
-  it('uses custom unlock targets when calculating unlock readiness and progress', () => {
+  it('uses custom unlock targets for the active target letter only', () => {
     const state = createInitialProgressState('2026-03-07T00:00:00.000Z')
     state.settings.unlockTargets = {
       hits: 20,
@@ -143,29 +186,25 @@ describe('progression', () => {
       wpm: 18,
     }
 
-    for (const letter of state.unlockedLetters) {
-      state.letterStats[letter] = {
-        ...state.letterStats[letter],
-        attempts: 20,
-        correctHits: 20,
-        totalCorrectMs: 5_600,
-        smoothedMs: 420,
-      }
-    }
-
-    state.letterStats.e = {
-      ...state.letterStats.e,
-      attempts: 22,
-      correctHits: 20,
-      totalCorrectMs: 5_600,
-      smoothedMs: 420,
+    state.letterStats.l = {
+      ...state.letterStats.l,
+      recentSessions: [
+        {
+          endedAt: '2026-03-07T00:01:00.000Z',
+          attempts: 24,
+          correctHits: 20,
+          totalCorrectMs: 0,
+          accuracy: 91,
+          wpm: 21,
+        },
+      ],
     }
 
     const unlockStatus = getUnlockStatus(state)
 
     expect(canUnlockNextLetter(state)).toBe(true)
     expect(unlockStatus.sampleProgress).toBe(1)
-    expect(unlockStatus.accuracyLetter).toBe('e')
+    expect(unlockStatus.accuracyLetter).toBe('l')
     expect(unlockStatus.accuracyProgress).toBe(1)
     expect(unlockStatus.speedProgress).toBe(1)
   })
@@ -234,6 +273,19 @@ describe('progression', () => {
         smoothedMs: 500,
       }
     }
+    state.letterStats.e = {
+      ...state.letterStats.e,
+      recentSessions: [
+        {
+          endedAt: '2026-03-07T00:00:00.000Z',
+          attempts: 10,
+          correctHits: 10,
+          totalCorrectMs: 0,
+          accuracy: 100,
+          wpm: 48,
+        },
+      ],
+    }
 
     const attempts: SessionKeyAttempt[] = [
       {
@@ -264,5 +316,41 @@ describe('progression', () => {
 
     expect(nextState.unlockedLetters).toContain('t')
     expect(nextState.nextUnlockLetter).toBe('o')
+  })
+
+  it('stores only the last 10 recent sessions for the session target letter', () => {
+    let state = createInitialProgressState('2026-03-07T00:00:00.000Z')
+
+    for (let index = 0; index < RECENT_LETTER_SESSIONS + 2; index += 1) {
+      state = updateProgressFromSession(state, [
+        {
+          expected: 'e',
+          actual: 'e',
+          correct: true,
+          deltaMs: 300 + index,
+          index: 0,
+          timestamp: index + 1,
+        },
+      ], {
+        id: `session-${index}`,
+        mode: 'adaptive',
+        focusLetter: null,
+        freeTier: null,
+        startedAt: `2026-03-07T00:${String(index).padStart(2, '0')}:00.000Z`,
+        endedAt: `2026-03-07T00:${String(index).padStart(2, '0')}:30.000Z`,
+        words: ['e'],
+        attempts: 1,
+        correctChars: 1,
+        accuracy: 100,
+        wpm: 40,
+        backspaces: 0,
+        weakLetters: ['e', 'n', 'i'],
+        targetLetter: 'e',
+      })
+    }
+
+    expect(state.letterStats.e.recentSessions).toHaveLength(RECENT_LETTER_SESSIONS)
+    expect(state.letterStats.e.recentSessions[0]?.endedAt).toBe('2026-03-07T00:02:30.000Z')
+    expect(state.letterStats.e.recentSessions[state.letterStats.e.recentSessions.length - 1]?.endedAt).toBe('2026-03-07T00:11:30.000Z')
   })
 })
