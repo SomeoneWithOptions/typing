@@ -160,6 +160,7 @@ export default function App() {
     resetProgress,
     tickClock,
     setHasFocus,
+    hasFocus,
   } = useTypingStore(
     useShallow((state) => ({
       progress: state.progress,
@@ -182,6 +183,7 @@ export default function App() {
       resetProgress: state.resetProgress,
       tickClock: state.tickClock,
       setHasFocus: state.setHasFocus,
+      hasFocus: state.hasFocus,
     })),
   )
   const [isPending, startTransition] = useTransition()
@@ -203,6 +205,7 @@ export default function App() {
   const isFreeMode = progress.settings.mode === 'free'
   const unlockTargets = progress.settings.unlockTargets
   const freeTierLabel = formatFreeCorpusTier(progress.settings.freeTier)
+  const practicePrompt = 'Click here to start typing'
 
   const currentLetter = isFreeMode ? null : lesson.targetLetters[0] ?? (isFocusMode ? progress.settings.focusLetter : unlockStatus.bottleneckLetter)
   const unlockMetricCards: Array<{
@@ -254,11 +257,6 @@ export default function App() {
     const interval = window.setInterval(() => tickClock(), 1000)
     return () => window.clearInterval(interval)
   }, [tickClock])
-
-  useEffect(() => {
-    if (!isLoaded) return
-    practiceRef.current?.focus()
-  }, [isLoaded, lesson.id])
 
   useEffect(() => {
     if (!editingMetric) {
@@ -445,23 +443,31 @@ export default function App() {
 
             <div
               aria-label="Typing practice surface"
-              className="practice-surface"
+              className={hasFocus ? 'practice-surface practice-surface--focused' : 'practice-surface practice-surface--idle'}
               onBlur={() => setHasFocus(false)}
               onFocus={() => setHasFocus(true)}
               onKeyDown={handleKeyDown}
+              onMouseDown={() => practiceRef.current?.focus()}
               ref={practiceRef}
               role="textbox"
               tabIndex={0}
             >
-              {isPending ? (
-                <span style={{ color: 'var(--t-muted)' }}>Preparing lesson…</span>
-              ) : (
-                <div className="practice-text-stage">
-                  <div className="practice-text">
-                    {renderPracticeWords(lesson, currentIndex, errorIndex)}
-                  </div>
+              <div className={hasFocus ? 'practice-text-stage practice-text-stage--focused' : 'practice-text-stage practice-text-stage--idle'}>
+                <div className={hasFocus ? 'practice-text-layer' : 'practice-text-layer practice-text-layer--blurred'}>
+                  {isPending ? (
+                    <span style={{ color: 'var(--t-muted)' }}>Preparing lesson…</span>
+                  ) : (
+                    <div className="practice-text">
+                      {renderPracticeWords(lesson, currentIndex, errorIndex)}
+                    </div>
+                  )}
                 </div>
-              )}
+                {!hasFocus ? (
+                  <div aria-hidden="true" className="practice-focus-hint">
+                    <strong>{practicePrompt}</strong>
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="unlock-progress-container">
               {isFreeMode ? (

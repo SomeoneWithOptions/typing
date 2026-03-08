@@ -119,32 +119,61 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
 }
 
 .practice-surface {
+  position: relative;
   width: 100%;
+  padding: 0;
   outline: none;
   contain: layout;
+  cursor: text;
+  overflow: hidden;
 }
 
 .practice-text-stage {
   width: 100%;
-  min-height: calc(2.25rem * 1.6 * 3);
+  min-height: clamp(18rem, 42vh, 24rem);
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.practice-text-layer {
+  width: 100%;
+  min-height: inherit;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+  transition:
+    filter 180ms ease,
+    opacity 180ms ease,
+    transform 220ms ease;
+}
+
+.practice-text-layer--blurred {
+  filter: blur(8px);
+  opacity: 0.32;
+  transform: scale(0.985);
 }
 
 .practice-text {
-  width: 100%;
+  width: min(100%, 44rem);
   font-family: var(--font-mono);
   font-size: 2.25rem;
   line-height: 1.6;
   color: var(--t-dim);
   user-select: none;
   word-wrap: break-word;
-  text-align: left;
+  text-align: center;
   max-width: 100%;
   min-height: inherit;
   transition: color var(--ease);
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
   column-gap: 0;
-  row-gap: 0.5rem;
+  row-gap: 0.65rem;
+  margin: 0 auto;
 }
 
 .practice-text__word {
@@ -184,6 +213,22 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
 
 .practice-text__char--space {
   min-width: 0.6em; /* Ensure the space has visible width for the cursor */
+}
+
+.practice-focus-hint {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  width: min(100%, 20rem);
+  text-align: center;
+  pointer-events: none;
+}
+
+.practice-focus-hint strong {
+  color: var(--t-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 /* ─── Metrics ─── */
@@ -412,6 +457,8 @@ button.unlock-target-chip:focus-visible {
     transition: color var(--ease);
   }
 
+  .practice-surface,
+  .practice-text-layer,
   .unlock-progress-strip__core,
   .unlock-progress-strip__title-text,
   .metric-item--next-letter,
