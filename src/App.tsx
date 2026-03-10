@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { useShallow } from 'zustand/shallow'
 import './App.css'
@@ -90,7 +90,7 @@ function getUnlockTargetHelper(metric: UnlockMetric) {
 function renderPracticeWords(
   lesson: Pick<GeneratedLesson, 'id' | 'text'>,
   currentIndex?: number,
-  errorIndex?: number | null,
+  errorIndices?: Set<number>,
 ) {
   const elements: ReactNode[] = []
   const text = lesson.text
@@ -104,7 +104,7 @@ function renderPracticeWords(
       const cls = ['practice-text__char']
       if (typeof currentIndex === 'number' && i < currentIndex) cls.push('practice-text__char--done')
       if (typeof currentIndex === 'number' && i === currentIndex) cls.push('practice-text__char--current')
-      if (errorIndex === i) cls.push('practice-text__char--error')
+      if (errorIndices?.has(i)) cls.push('practice-text__char--error')
       wordChars.push(
         <span className={cls.join(' ')} key={`${lesson.id}-${i}`}>{text[i]}</span>,
       )
@@ -115,7 +115,7 @@ function renderPracticeWords(
       const cls = ['practice-text__char', 'practice-text__char--space']
       if (typeof currentIndex === 'number' && i < currentIndex) cls.push('practice-text__char--done')
       if (typeof currentIndex === 'number' && i === currentIndex) cls.push('practice-text__char--current')
-      if (errorIndex === i) cls.push('practice-text__char--error')
+      if (errorIndices?.has(i)) cls.push('practice-text__char--error')
       wordChars.push(
         <span className={cls.join(' ')} key={`${lesson.id}-${i}`}> </span>,
       )
@@ -197,8 +197,17 @@ export default function App() {
   const elapsedMs = lessonStartedAt === null ? 0 : Math.max(1, clock - lessonStartedAt)
   const liveWpm = getWpm(currentIndex, elapsedMs)
   const liveAccuracy = getAccuracy(currentIndex, metricAttempts.length)
-  const lastAttempt = attempts[attempts.length - 1] ?? null
-  const errorIndex = lastAttempt && !lastAttempt.correct ? lastAttempt.index : null
+
+  const errorIndices = useMemo(() => {
+    const indices = new Set<number>()
+    for (let i = 0; i < attempts.length; i++) {
+      if (!attempts[i].correct) {
+        indices.add(attempts[i].index)
+      }
+    }
+    return indices
+  }, [attempts])
+
   const recentSessions = progress.sessions.slice(0, 5)
   const isAdaptiveMode = progress.settings.mode === 'adaptive'
   const isFocusMode = progress.settings.mode === 'focus'
@@ -464,7 +473,7 @@ export default function App() {
                     <span style={{ color: 'var(--t-muted)' }}>Preparing lesson…</span>
                   ) : (
                     <div className="practice-text">
-                      {renderPracticeWords(lesson, currentIndex, errorIndex)}
+                      {renderPracticeWords(lesson, currentIndex, errorIndices)}
                     </div>
                   )}
                 </div>

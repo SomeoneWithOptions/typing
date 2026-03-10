@@ -472,8 +472,8 @@ export const useTypingStore = create<TypingStore>((set) => ({
         }
       }
 
-      const nextAttempts = state.attempts.slice(0, -1)
       const removedAttempt = state.attempts[state.attempts.length - 1]
+      const nextAttempts = state.attempts.slice(0, -1)
       let metricIndex = -1
 
       if (removedAttempt.correct) {
@@ -489,26 +489,30 @@ export const useTypingStore = create<TypingStore>((set) => ({
         metricIndex === -1
           ? state.metricAttempts
           : state.metricAttempts.filter((_, index) => index !== metricIndex)
-      const nextLessonStartedAt = nextAttempts.length === 0 ? null : state.lessonStartedAt
+
+      // When backspacing, we remove all attempts for the current character position
+      // so the red error indicator is cleared and the user can start fresh.
+      const finalAttempts = nextAttempts.filter((a) => a.index !== removedAttempt.index)
+      const nextLessonStartedAt = finalAttempts.length === 0 ? null : state.lessonStartedAt
 
       if (removedAttempt.correct) {
         return {
-          attempts: nextAttempts,
+          attempts: finalAttempts,
           metricAttempts: nextMetricAttempts,
           backspaces: state.backspaces + 1,
           currentIndex: Math.max(0, state.currentIndex - 1),
           lessonStartedAt: nextLessonStartedAt,
-          lastInputAt: nextAttempts[nextAttempts.length - 1]?.timestamp ?? null,
+          lastInputAt: finalAttempts[finalAttempts.length - 1]?.timestamp ?? null,
           statusMessage: 'Last correct key removed.',
         }
       }
 
       return {
-        attempts: nextAttempts,
+        attempts: finalAttempts,
         metricAttempts: nextMetricAttempts,
         backspaces: state.backspaces + 1,
         lessonStartedAt: nextLessonStartedAt,
-        lastInputAt: nextAttempts[nextAttempts.length - 1]?.timestamp ?? null,
+        lastInputAt: finalAttempts[finalAttempts.length - 1]?.timestamp ?? null,
         statusMessage: 'Last attempt removed.',
       }
     })
