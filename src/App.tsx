@@ -617,6 +617,12 @@ export default function App() {
             {isAdaptiveMode ? <KeyboardMap /> : null}
           </section>
         </main>
+
+        <footer className="footer">
+          <a href="https://github.com/SomeoneWithOptions/typing" target="_blank" rel="noopener noreferrer">github</a>
+          <span className="footer__separator">·</span>
+          made by <a href="https://www.sanetomore.com" target="_blank" rel="noopener noreferrer">@sanetomore</a>
+        </footer>
       </div>
     </>
   )

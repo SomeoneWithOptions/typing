@@ -984,6 +984,35 @@ button.unlock-target-chip:focus-visible {
   color: var(--t-muted);
 }
 
+/* ─── Footer ─── */
+
+.footer {
+  width: 100%;
+  padding: 4rem 0 3rem;
+  border-top: 1px solid var(--b-subtle);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--t-muted);
+  letter-spacing: 0.02em;
+}
+
+.footer a {
+  color: var(--t-secondary);
+  text-decoration: none;
+  transition: color var(--ease);
+}
+
+.footer a:hover {
+  color: var(--accent);
+}
+
+.footer__separator {
+  margin: 0 0.6rem;
+  color: var(--t-dim);
+  user-select: none;
+}
+
 /* ─── Mobile Overlay ─── */
 
 .mobile-overlay {
