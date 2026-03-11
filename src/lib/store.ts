@@ -93,6 +93,7 @@ async function ensureFreeLessonReady(
       lessonStartedAt: null,
       lastInputAt: null,
       clock: Date.now(),
+      backspacedErrorIndices: new Set<number>(),
       statusMessage: `Free practice: English ${formatFreeCorpusTier(freeTier)} ready.`,
     }
   })
@@ -116,6 +117,7 @@ function createLessonState(progress: ProgressState, timestamp = Date.now()) {
     lessonStartedAt: null,
     lastInputAt: null,
     clock: timestamp,
+    backspacedErrorIndices: new Set<number>(),
   }
 }
 
@@ -128,6 +130,7 @@ function resetCurrentLessonState(timestamp = Date.now()) {
     lessonStartedAt: null,
     lastInputAt: null,
     clock: timestamp,
+    backspacedErrorIndices: new Set<number>(),
   }
 }
 
@@ -207,6 +210,7 @@ export interface TypingStoreState {
   isLoaded: boolean
   isSaving: boolean
   hasFocus: boolean
+  backspacedErrorIndices: Set<number>
 }
 
 export interface TypingStoreActions {
@@ -238,6 +242,7 @@ export function createInitialTypingStoreState(): TypingStoreState {
     isLoaded: false,
     isSaving: false,
     hasFocus: false,
+    backspacedErrorIndices: new Set<number>(),
   }
 }
 
@@ -492,7 +497,15 @@ export const useTypingStore = create<TypingStore>((set) => ({
 
       // When backspacing, we remove all attempts for the current character position
       // so the red error indicator is cleared and the user can start fresh.
-      const finalAttempts = nextAttempts.filter((a) => a.index !== removedAttempt.index)
+      const removedIndex = removedAttempt.index
+      const hadError = state.attempts.some((a) => a.index === removedIndex && !a.correct)
+      const nextBackspacedErrorIndices = new Set(state.backspacedErrorIndices)
+      
+      if (hadError) {
+        nextBackspacedErrorIndices.add(removedIndex)
+      }
+
+      const finalAttempts = nextAttempts.filter((a) => a.index !== removedIndex)
       const nextLessonStartedAt = finalAttempts.length === 0 ? null : state.lessonStartedAt
 
       if (removedAttempt.correct) {
@@ -504,6 +517,7 @@ export const useTypingStore = create<TypingStore>((set) => ({
           lessonStartedAt: nextLessonStartedAt,
           lastInputAt: finalAttempts[finalAttempts.length - 1]?.timestamp ?? null,
           statusMessage: 'Last correct key removed.',
+          backspacedErrorIndices: nextBackspacedErrorIndices,
         }
       }
 
@@ -514,6 +528,7 @@ export const useTypingStore = create<TypingStore>((set) => ({
         lessonStartedAt: nextLessonStartedAt,
         lastInputAt: finalAttempts[finalAttempts.length - 1]?.timestamp ?? null,
         statusMessage: 'Last attempt removed.',
+        backspacedErrorIndices: nextBackspacedErrorIndices,
       }
     })
   },

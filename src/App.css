@@ -24,6 +24,8 @@
   --accent-dim: rgba(0, 212, 170, 0.1);
   --error: #ff6b9d;
   --error-dim: rgba(255, 107, 157, 0.1);
+  --error-past: #ffb86c;
+  --error-corrected: #bd93f9;
 
   /* Radii */
   --r-small: 4px;
@@ -207,8 +209,16 @@ button { cursor: pointer; border: none; background: none; color: inherit; paddin
   background: var(--accent);
 }
 
-.practice-text__char--error {
+.practice-text__char--error-current {
   color: var(--error);
+}
+
+.practice-text__char--error-past {
+  color: var(--error-past);
+}
+
+.practice-text__char--error-corrected {
+  color: var(--error-corrected);
 }
 
 .practice-text__char--space {

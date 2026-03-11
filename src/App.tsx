@@ -91,6 +91,7 @@ function renderPracticeWords(
   lesson: Pick<GeneratedLesson, 'id' | 'text'>,
   currentIndex?: number,
   errorIndices?: Set<number>,
+  backspacedErrorIndices?: Set<number>,
 ) {
   const elements: ReactNode[] = []
   const text = lesson.text
@@ -102,9 +103,20 @@ function renderPracticeWords(
 
     while (i < text.length && text[i] !== ' ') {
       const cls = ['practice-text__char']
-      if (typeof currentIndex === 'number' && i < currentIndex) cls.push('practice-text__char--done')
-      if (typeof currentIndex === 'number' && i === currentIndex) cls.push('practice-text__char--current')
-      if (errorIndices?.has(i)) cls.push('practice-text__char--error')
+      const isPast = typeof currentIndex === 'number' && i < currentIndex
+      const isCurrent = typeof currentIndex === 'number' && i === currentIndex
+
+      if (isPast) cls.push('practice-text__char--done')
+      if (isCurrent) cls.push('practice-text__char--current')
+
+      if (isCurrent && errorIndices?.has(i)) {
+        cls.push('practice-text__char--error-current')
+      } else if (isPast && errorIndices?.has(i)) {
+        cls.push('practice-text__char--error-past')
+      } else if (isPast && backspacedErrorIndices?.has(i)) {
+        cls.push('practice-text__char--error-corrected')
+      }
+
       wordChars.push(
         <span className={cls.join(' ')} key={`${lesson.id}-${i}`}>{text[i]}</span>,
       )
@@ -113,9 +125,20 @@ function renderPracticeWords(
 
     if (i < text.length && text[i] === ' ') {
       const cls = ['practice-text__char', 'practice-text__char--space']
-      if (typeof currentIndex === 'number' && i < currentIndex) cls.push('practice-text__char--done')
-      if (typeof currentIndex === 'number' && i === currentIndex) cls.push('practice-text__char--current')
-      if (errorIndices?.has(i)) cls.push('practice-text__char--error')
+      const isPast = typeof currentIndex === 'number' && i < currentIndex
+      const isCurrent = typeof currentIndex === 'number' && i === currentIndex
+
+      if (isPast) cls.push('practice-text__char--done')
+      if (isCurrent) cls.push('practice-text__char--current')
+
+      if (isCurrent && errorIndices?.has(i)) {
+        cls.push('practice-text__char--error-current')
+      } else if (isPast && errorIndices?.has(i)) {
+        cls.push('practice-text__char--error-past')
+      } else if (isPast && backspacedErrorIndices?.has(i)) {
+        cls.push('practice-text__char--error-corrected')
+      }
+
       wordChars.push(
         <span className={cls.join(' ')} key={`${lesson.id}-${i}`}> </span>,
       )
@@ -161,6 +184,7 @@ export default function App() {
     tickClock,
     setHasFocus,
     hasFocus,
+    backspacedErrorIndices,
   } = useTypingStore(
     useShallow((state) => ({
       progress: state.progress,
@@ -184,6 +208,7 @@ export default function App() {
       tickClock: state.tickClock,
       setHasFocus: state.setHasFocus,
       hasFocus: state.hasFocus,
+      backspacedErrorIndices: state.backspacedErrorIndices,
     })),
   )
   const [isPending, startTransition] = useTransition()
@@ -473,7 +498,7 @@ export default function App() {
                     <span style={{ color: 'var(--t-muted)' }}>Preparing lesson…</span>
                   ) : (
                     <div className="practice-text">
-                      {renderPracticeWords(lesson, currentIndex, errorIndices)}
+                      {renderPracticeWords(lesson, currentIndex, errorIndices, backspacedErrorIndices)}
                     </div>
                   )}
                 </div>
