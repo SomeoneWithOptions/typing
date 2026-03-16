@@ -6,6 +6,7 @@ import {
   FREE_CORPUS_TIERS,
   MASTERY_ACCURACY_TARGET,
   MASTERY_WPM_TARGET,
+  MAX_KEYSTROKE_SESSIONS,
   MAX_SESSION_HISTORY,
   RECENT_LETTER_SESSIONS,
   UNLOCK_SAMPLE_TARGET,
@@ -317,11 +318,12 @@ export function hydratingProgressState(input: ProgressState | null): ProgressSta
     input.settings?.mode === 'focus' || input.settings?.mode === 'free' ? input.settings.mode : 'adaptive'
   const unlockTargets = normalizeUnlockTargets(input.settings?.unlockTargets)
   const freeTier = normalizeFreeCorpusTier(input.settings?.freeTier)
-  const sessions = input.sessions.slice(0, MAX_SESSION_HISTORY).map((session) => ({
+  const sessions = input.sessions.slice(0, MAX_SESSION_HISTORY).map((session, index) => ({
     ...session,
     focusLetter: session.mode === 'focus' && session.focusLetter && isLetter(session.focusLetter) ? session.focusLetter : null,
     targetLetter: session.mode !== 'free' && session.targetLetter && isLetter(session.targetLetter) ? session.targetLetter : null,
     freeTier: session.mode === 'free' ? normalizeFreeCorpusTier(session.freeTier) : null,
+    keystrokes: index < MAX_KEYSTROKE_SESSIONS ? session.keystrokes : undefined,
   }))
 
   return {

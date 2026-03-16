@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent
 import { flushSync } from 'react-dom'
 import { useShallow } from 'zustand/shallow'
 import './App.css'
+import { ErrorHeatmap } from './components/ErrorHeatmap'
 import { KeyboardMap } from './components/KeyboardMap'
 import {
   formatFreeCorpusTier,
@@ -640,6 +641,8 @@ export default function App() {
             )}
 
             {isAdaptiveMode ? <KeyboardMap /> : null}
+
+            <ErrorHeatmap sessions={progress.sessions} />
           </section>
         </main>
 

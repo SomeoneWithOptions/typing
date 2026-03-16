@@ -85,6 +85,7 @@ export interface SessionRecord {
   backspaces: number
   weakLetters: Letter[]
   unlockedAfterSession: Letter[]
+  keystrokes?: SessionKeyAttempt[]
 }
 
 export interface GeneratedLesson {

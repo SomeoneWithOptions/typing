@@ -1,6 +1,6 @@
 import type { FreeCorpusTier, Letter, UnlockMetric, UnlockSequence, UnlockTargets } from './types'
 
-export const APP_VERSION = 3
+export const APP_VERSION = 4
 export const LESSON_WORD_COUNT = 25
 export const MAX_SESSION_HISTORY = 120
 export const RECENT_LETTER_SESSIONS = 10
@@ -25,6 +25,7 @@ export const UNLOCK_TARGET_LIMITS: Record<UnlockMetric, { min: number; max: numb
 export const MASTERY_WPM_TARGET = 40
 export const MASTERY_ACCURACY_TARGET = 97
 export const LESSON_IDLE_TIMEOUT_MS = 15_000
+export const MAX_KEYSTROKE_SESSIONS = 50
 
 export const UNLOCK_SEQUENCE: UnlockSequence = {
   initial: ['e', 'n', 'i', 'a', 'r', 'l'],

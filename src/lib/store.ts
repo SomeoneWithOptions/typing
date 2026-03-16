@@ -139,6 +139,7 @@ function createCompletedLessonState(
   nextMetricAttempts: SessionKeyAttempt[],
   finishedAt: number,
   startedAtOverride?: number,
+  allAttempts?: SessionKeyAttempt[],
 ) {
   const endedAt = new Date(finishedAt).toISOString()
   const startedAt = startedAtOverride ?? state.lessonStartedAt ?? finishedAt
@@ -160,6 +161,7 @@ function createCompletedLessonState(
     wpm: sessionWpm,
     backspaces: state.backspaces,
     weakLetters: getWeakLetters(state.progress, 3),
+    keystrokes: allAttempts ?? [...state.attempts, ...nextMetricAttempts.slice(state.attempts.length)],
   }
 
   if (state.progress.settings.mode === 'free') {
@@ -456,7 +458,7 @@ export const useTypingStore = create<TypingStore>((set) => ({
 
       const nextIndex = state.currentIndex + 1
       if (nextIndex === state.lesson.text.length) {
-        return createCompletedLessonState(state, nextMetricAttempts, timestamp, lessonStartedAt)
+        return createCompletedLessonState(state, nextMetricAttempts, timestamp, lessonStartedAt, nextAttempts)
       }
 
       return {
@@ -533,7 +535,7 @@ export const useTypingStore = create<TypingStore>((set) => ({
     })
   },
   completeLesson(nextAttempts, finishedAt, nextMetricAttempts) {
-    set((state) => createCompletedLessonState(state, nextMetricAttempts ?? nextAttempts, finishedAt))
+    set((state) => createCompletedLessonState(state, nextMetricAttempts ?? nextAttempts, finishedAt, undefined, nextAttempts))
   },
   async resetProgress() {
     await indexedDbStorage.reset()
