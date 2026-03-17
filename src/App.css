@@ -1059,13 +1059,13 @@ button.unlock-target-chip:focus-visible {
 .ehm__board {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.7rem;
+  align-items: flex-start;
+  gap: 0.5rem;
 }
 
 .ehm__row {
   display: flex;
-  gap: 0.7rem;
+  gap: 0.5rem;
 }
 
 /* ─── Individual Key ─── */
@@ -1075,11 +1075,11 @@ button.unlock-target-chip:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 4.4rem;
-  height: 4.4rem;
-  border-radius: 1rem;
-  border: 1.5px solid rgba(255, 255, 255, 0.08);
-  background: #1c1c1c;
+  width: 4.2rem;
+  height: 4.2rem;
+  border-radius: 0.75rem;
+  border: 1.5px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-surface);
   font-family: var(--font-mono);
   cursor: default;
   user-select: none;
@@ -1087,24 +1087,22 @@ button.unlock-target-chip:focus-visible {
   transition:
     transform 150ms ease,
     box-shadow 150ms ease,
-    border-color 150ms ease;
+    border-color 200ms ease;
 }
 
 .ehm__key:hover,
 .ehm__key--active {
-  transform: translateY(-4px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
-  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
 }
 
 .ehm__key--no-data {
-  opacity: 0.35;
+  opacity: 0.25;
 }
 
 .ehm__key--no-data:hover {
   transform: none;
   box-shadow: none;
-  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .ehm__key--clickable {
@@ -1112,38 +1110,24 @@ button.unlock-target-chip:focus-visible {
 }
 
 .ehm__key--clickable:active {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   transition-duration: 60ms;
 }
 
 .ehm__key--confirm-target {
   border-color: rgba(255, 80, 80, 0.5) !important;
-  box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.15) !important;
 }
 
 .ehm__letter {
-  font-size: 1.4rem;
-  font-weight: 800;
+  font-size: 1.2rem;
+  font-weight: 700;
   line-height: 1;
   color: var(--t-primary);
-  position: relative;
-  z-index: 1;
 }
 
 .ehm__key--no-data .ehm__letter {
   color: var(--t-dim);
-  font-weight: 700;
-}
-
-/* Bottom accent bar — the heat indicator */
-.ehm__bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-radius: 0 0 1rem 1rem;
-  transition: opacity 150ms ease;
+  font-weight: 600;
 }
 
 /* ─── Detail Panel ─── */
@@ -1333,7 +1317,36 @@ button.unlock-target-chip:focus-visible {
 .ehm__legend {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.ehm__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.ehm__legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ehm__legend-dot--accurate {
+  background: hsl(160, 70%, 55%);
+  opacity: 0.7;
+}
+
+.ehm__legend-dot--moderate {
+  background: hsl(40, 80%, 55%);
+  opacity: 0.7;
+}
+
+.ehm__legend-dot--error {
+  background: hsl(340, 78%, 55%);
+  opacity: 0.7;
 }
 
 .ehm__legend-label {
@@ -1344,62 +1357,45 @@ button.unlock-target-chip:focus-visible {
   color: var(--t-dim);
 }
 
-.ehm__legend-gradient {
-  width: 7rem;
-  height: 3px;
-  border-radius: 2px;
-  background: linear-gradient(
-    to right,
-    hsl(160, 70%, 55%),
-    hsl(40, 80%, 55%),
-    hsl(340, 78%, 55%)
-  );
-  opacity: 0.55;
-}
-
 /* ─── Heatmap Responsive ─── */
 
 @media (max-width: 1200px) {
   .ehm__key {
-    width: 3.8rem;
-    height: 3.8rem;
-    border-radius: 0.85rem;
+    width: 3.6rem;
+    height: 3.6rem;
+    border-radius: 0.65rem;
   }
 
   .ehm__letter {
-    font-size: 1.2rem;
+    font-size: 1.05rem;
   }
 
   .ehm__row {
-    gap: 0.6rem;
+    gap: 0.4rem;
   }
 
   .ehm__board {
-    gap: 0.6rem;
+    gap: 0.4rem;
   }
 }
 
 @media (max-width: 800px) {
   .ehm__key {
-    width: 3rem;
-    height: 3rem;
-    border-radius: 0.7rem;
+    width: 2.8rem;
+    height: 2.8rem;
+    border-radius: 0.5rem;
   }
 
   .ehm__letter {
-    font-size: 1rem;
+    font-size: 0.88rem;
   }
 
   .ehm__row {
-    gap: 0.45rem;
+    gap: 0.3rem;
   }
 
   .ehm__board {
-    gap: 0.45rem;
-  }
-
-  .ehm__bar {
-    height: 2px;
+    gap: 0.3rem;
   }
 }
 
@@ -1410,10 +1406,6 @@ button.unlock-target-chip:focus-visible {
 
   .ehm__detail {
     animation: none;
-  }
-
-  .ehm__bar {
-    transition: none;
   }
 }
 

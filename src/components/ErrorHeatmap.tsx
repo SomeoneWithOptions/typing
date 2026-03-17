@@ -4,7 +4,7 @@ import { computeHeatmapData, type KeyErrorStats } from '../lib/heatmap'
 import type { Letter, SessionRecord } from '../lib/types'
 
 /**
- * Maps an error rate to a hue value for the accent bar.
+ * Maps an error rate to a hue value for the key border.
  * 0% -> 160 (teal/accent), ~5% -> 40 (amber), 10%+ -> 340 (pink/error)
  * Returns both the hue and a normalized intensity (0..1).
  */
@@ -48,7 +48,8 @@ export function ErrorHeatmap({ sessions, onResetKey, onResetAll }: ErrorHeatmapP
     [sessions],
   )
 
-  const rowOffsets = [0, 1, 3]
+  // Real QWERTY stagger: A-row ~½ key, Z-row ~1 key
+  const rowPadding = ['0rem', '2.35rem', '5rem']
 
   const handleKeyClick = (letter: Letter) => {
     const stats = data?.[letter]
@@ -115,7 +116,7 @@ export function ErrorHeatmap({ sessions, onResetKey, onResetAll }: ErrorHeatmapP
           <div
             className="ehm__row"
             key={row.join('')}
-            style={{ paddingLeft: `${rowOffsets[rowIndex] * 1.8}rem` }}
+            style={{ paddingLeft: rowPadding[rowIndex] }}
           >
             {row.map((letter) => {
               const stats = data[letter]
@@ -127,20 +128,10 @@ export function ErrorHeatmap({ sessions, onResetKey, onResetAll }: ErrorHeatmapP
                 ? getHeatValues(errorRate, maxErrorRate)
                 : { hue: 160, intensity: 0 }
 
-              const barColor = hasData && errorRate > 0
-                ? `hsl(${hue}, 75%, 58%)`
-                : hasData
-                  ? 'var(--accent)'
-                  : 'var(--t-dim)'
-
-              const barOpacity = hasData
+              const borderColor = hasData
                 ? errorRate > 0
-                  ? 0.4 + intensity * 0.6
-                  : 0.2
-                : 0.08
-
-              const bgTint = hasData && errorRate > 0
-                ? `hsla(${hue}, 70%, 50%, ${0.04 + intensity * 0.08})`
+                  ? `hsla(${hue}, 50%, 52%, ${0.18 + intensity * 0.42})`
+                  : 'hsla(160, 45%, 48%, 0.12)'
                 : undefined
 
               return (
@@ -155,13 +146,9 @@ export function ErrorHeatmap({ sessions, onResetKey, onResetAll }: ErrorHeatmapP
                   key={letter}
                   onMouseEnter={() => { if (!confirm) setActiveKey(letter) }}
                   onClick={() => handleKeyClick(letter)}
-                  style={{ background: bgTint }}
+                  style={borderColor ? { borderColor } : undefined}
                 >
                   <span className="ehm__letter">{letter.toUpperCase()}</span>
-                  <span
-                    className="ehm__bar"
-                    style={{ background: barColor, opacity: barOpacity }}
-                  />
                 </div>
               )
             })}
@@ -227,9 +214,18 @@ export function ErrorHeatmap({ sessions, onResetKey, onResetAll }: ErrorHeatmapP
       </div>
 
       <div className="ehm__legend">
-        <span className="ehm__legend-label">accurate</span>
-        <div className="ehm__legend-gradient" />
-        <span className="ehm__legend-label">error-prone</span>
+        <div className="ehm__legend-item">
+          <span className="ehm__legend-dot ehm__legend-dot--accurate" />
+          <span className="ehm__legend-label">accurate</span>
+        </div>
+        <div className="ehm__legend-item">
+          <span className="ehm__legend-dot ehm__legend-dot--moderate" />
+          <span className="ehm__legend-label">moderate</span>
+        </div>
+        <div className="ehm__legend-item">
+          <span className="ehm__legend-dot ehm__legend-dot--error" />
+          <span className="ehm__legend-label">error-prone</span>
+        </div>
       </div>
     </div>
   )
