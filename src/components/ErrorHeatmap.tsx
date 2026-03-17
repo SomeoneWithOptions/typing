@@ -29,12 +29,19 @@ function formatRate(rate: number): string {
   return `${Math.round(rate)}%`
 }
 
+type ConfirmState =
+  | { type: 'all' }
+  | { type: 'key'; letter: Letter }
+
 interface ErrorHeatmapProps {
   sessions: SessionRecord[]
+  onResetKey?: (letter: Letter) => void
+  onResetAll?: () => void
 }
 
-export function ErrorHeatmap({ sessions }: ErrorHeatmapProps) {
+export function ErrorHeatmap({ sessions, onResetKey, onResetAll }: ErrorHeatmapProps) {
   const [activeKey, setActiveKey] = useState<Letter | null>(null)
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null)
 
   const { data, sessionCount, maxErrorRate } = useMemo(
     () => computeHeatmapData(sessions),
@@ -42,6 +49,27 @@ export function ErrorHeatmap({ sessions }: ErrorHeatmapProps) {
   )
 
   const rowOffsets = [0, 1, 3]
+
+  const handleKeyClick = (letter: Letter) => {
+    const stats = data?.[letter]
+    if (!stats || stats.totalAttempts === 0) return
+    setConfirm({ type: 'key', letter })
+  }
+
+  const handleConfirmYes = () => {
+    if (!confirm) return
+    if (confirm.type === 'all') {
+      onResetAll?.()
+    } else {
+      onResetKey?.(confirm.letter)
+    }
+    setConfirm(null)
+    setActiveKey(null)
+  }
+
+  const handleConfirmNo = () => {
+    setConfirm(null)
+  }
 
   if (!data) {
     return (
@@ -58,14 +86,31 @@ export function ErrorHeatmap({ sessions }: ErrorHeatmapProps) {
 
   const activeStats: KeyErrorStats | null = activeKey ? data[activeKey] ?? null : null
 
+  const confirmLabel = confirm
+    ? confirm.type === 'all'
+      ? 'Reset all key data?'
+      : `Reset key ${confirm.letter.toUpperCase()}?`
+    : null
+
   return (
     <div className="ehm">
       <div className="ehm__header">
         <h3 className="info-section-title">Error Heatmap</h3>
-        <span className="ehm__session-count">last {sessionCount} sessions</span>
+        <div className="ehm__header-meta">
+          <span className="ehm__session-count">last {sessionCount} sessions</span>
+          {onResetAll && (
+            <button
+              className="ehm__reset-btn"
+              onClick={() => setConfirm({ type: 'all' })}
+              title="Reset all heatmap data"
+            >
+              reset
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="ehm__board" onMouseLeave={() => setActiveKey(null)}>
+      <div className="ehm__board" onMouseLeave={() => { if (!confirm) setActiveKey(null) }}>
         {KEYBOARD_ROWS.map((row, rowIndex) => (
           <div
             className="ehm__row"
@@ -77,6 +122,7 @@ export function ErrorHeatmap({ sessions }: ErrorHeatmapProps) {
               const errorRate = stats?.errorRate ?? 0
               const hasData = stats && stats.totalAttempts > 0
               const isActive = activeKey === letter
+              const isConfirmTarget = confirm?.type === 'key' && confirm.letter === letter
               const { hue, intensity } = hasData
                 ? getHeatValues(errorRate, maxErrorRate)
                 : { hue: 160, intensity: 0 }
@@ -103,9 +149,12 @@ export function ErrorHeatmap({ sessions }: ErrorHeatmapProps) {
                     'ehm__key',
                     isActive && 'ehm__key--active',
                     !hasData && 'ehm__key--no-data',
+                    hasData && onResetKey && 'ehm__key--clickable',
+                    isConfirmTarget && 'ehm__key--confirm-target',
                   ].filter(Boolean).join(' ')}
                   key={letter}
-                  onMouseEnter={() => setActiveKey(letter)}
+                  onMouseEnter={() => { if (!confirm) setActiveKey(letter) }}
+                  onClick={() => handleKeyClick(letter)}
                   style={{ background: bgTint }}
                 >
                   <span className="ehm__letter">{letter.toUpperCase()}</span>
@@ -121,7 +170,19 @@ export function ErrorHeatmap({ sessions }: ErrorHeatmapProps) {
       </div>
 
       <div className="ehm__detail-container">
-        {activeStats && activeStats.totalAttempts > 0 ? (
+        {confirm ? (
+          <div className="ehm__confirm" role="dialog" aria-label="Confirm reset">
+            <span className="ehm__confirm-text">{confirmLabel}</span>
+            <div className="ehm__confirm-actions">
+              <button className="ehm__confirm-btn ehm__confirm-btn--yes" onClick={handleConfirmYes}>
+                Yes
+              </button>
+              <button className="ehm__confirm-btn ehm__confirm-btn--no" onClick={handleConfirmNo}>
+                No
+              </button>
+            </div>
+          </div>
+        ) : activeStats && activeStats.totalAttempts > 0 ? (
           <div className="ehm__detail" key={activeStats.letter}>
             <div className="ehm__detail-header">
               <span className="ehm__detail-letter">{activeStats.letter.toUpperCase()}</span>
@@ -160,7 +221,7 @@ export function ErrorHeatmap({ sessions }: ErrorHeatmapProps) {
           </div>
         ) : (
           <div className="ehm__detail ehm__detail--placeholder">
-            hover a key to inspect
+            hover a key to inspect · click to reset
           </div>
         )}
       </div>

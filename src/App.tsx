@@ -182,6 +182,8 @@ export default function App() {
     handleTypedKey,
     handleBackspace,
     resetProgress,
+    resetHeatmapKey,
+    resetHeatmapData,
     tickClock,
     setHasFocus,
     hasFocus,
@@ -206,6 +208,8 @@ export default function App() {
       handleTypedKey: state.handleTypedKey,
       handleBackspace: state.handleBackspace,
       resetProgress: state.resetProgress,
+      resetHeatmapKey: state.resetHeatmapKey,
+      resetHeatmapData: state.resetHeatmapData,
       tickClock: state.tickClock,
       setHasFocus: state.setHasFocus,
       hasFocus: state.hasFocus,
@@ -642,7 +646,11 @@ export default function App() {
 
             {isAdaptiveMode ? <KeyboardMap /> : null}
 
-            <ErrorHeatmap sessions={progress.sessions} />
+            <ErrorHeatmap
+              sessions={progress.sessions}
+              onResetKey={resetHeatmapKey}
+              onResetAll={resetHeatmapData}
+            />
           </section>
         </main>
 

@@ -1007,11 +1007,43 @@ button.unlock-target-chip:focus-visible {
   margin-bottom: 0;
 }
 
+.ehm__header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .ehm__session-count {
   font-family: var(--font-mono);
   font-size: 0.65rem;
   color: var(--t-dim);
   letter-spacing: 0.06em;
+}
+
+/* ─── Reset Button ─── */
+
+.ehm__reset-btn {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t-dim);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.35rem;
+  padding: 0.18rem 0.5rem;
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.ehm__reset-btn:hover {
+  color: var(--error);
+  border-color: rgba(255, 80, 80, 0.35);
+  background: rgba(255, 80, 80, 0.07);
 }
 
 .ehm__empty {
@@ -1075,6 +1107,20 @@ button.unlock-target-chip:focus-visible {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
+.ehm__key--clickable {
+  cursor: pointer;
+}
+
+.ehm__key--clickable:active {
+  transform: translateY(-2px);
+  transition-duration: 60ms;
+}
+
+.ehm__key--confirm-target {
+  border-color: rgba(255, 80, 80, 0.5) !important;
+  box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.15) !important;
+}
+
 .ehm__letter {
   font-size: 1.4rem;
   font-weight: 800;
@@ -1133,6 +1179,72 @@ button.unlock-target-chip:focus-visible {
 @keyframes ehm-fade-in {
   from { opacity: 0; transform: translateY(3px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Confirmation Popover ─── */
+
+.ehm__confirm {
+  width: 100%;
+  padding: 1.1rem 1.3rem;
+  border: 1px solid rgba(255, 80, 80, 0.3);
+  border-radius: 0.85rem;
+  background: var(--bg-surface);
+  font-family: var(--font-mono);
+  animation: ehm-fade-in 120ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ehm__confirm-text {
+  font-size: 0.78rem;
+  color: var(--t-muted);
+  letter-spacing: 0.02em;
+}
+
+.ehm__confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.ehm__confirm-btn {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+
+.ehm__confirm-btn--yes {
+  background: rgba(255, 80, 80, 0.12);
+  border: 1px solid rgba(255, 80, 80, 0.4);
+  color: var(--error);
+}
+
+.ehm__confirm-btn--yes:hover {
+  background: rgba(255, 80, 80, 0.22);
+  border-color: rgba(255, 80, 80, 0.7);
+}
+
+.ehm__confirm-btn--no {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--t-dim);
+}
+
+.ehm__confirm-btn--no:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--t-muted);
 }
 
 .ehm__detail-header {

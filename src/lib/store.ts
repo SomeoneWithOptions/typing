@@ -228,6 +228,8 @@ export interface TypingStoreActions {
   handleBackspace: () => void
   completeLesson: (nextAttempts: SessionKeyAttempt[], finishedAt: number, nextMetricAttempts?: SessionKeyAttempt[]) => void
   resetProgress: () => Promise<void>
+  resetHeatmapKey: (letter: Letter) => void
+  resetHeatmapData: () => void
   tickClock: () => void
   setHasFocus: (value: boolean) => void
 }
@@ -549,6 +551,24 @@ export const useTypingStore = create<TypingStore>((set) => ({
       isSaving: false,
       hasFocus: false,
     }))
+  },
+  resetHeatmapKey(letter) {
+    set((state) => {
+      const sessions = state.progress.sessions.map((session) => ({
+        ...session,
+        keystrokes: session.keystrokes?.filter((k) => k.expected !== letter) ?? [],
+      }))
+      return { progress: { ...state.progress, sessions } }
+    })
+  },
+  resetHeatmapData() {
+    set((state) => {
+      const sessions = state.progress.sessions.map((session) => ({
+        ...session,
+        keystrokes: [],
+      }))
+      return { progress: { ...state.progress, sessions } }
+    })
   },
   tickClock() {
     set((state) => {
